@@ -27,10 +27,12 @@ target_node <- xml_find_all(xml_input, ".//TARGET")
 
 #alebo aj od zaciatku... vyskladat kazdy source, so svojim SQ, filtrom, a pozret im v tabulke connectors_all_df kde sa stretaju, robit len potial, potom ich mergnut
 #to je asi lepsie
-#spravit zoznam - queue - vetvi, ktore treba spravit:
+#spravit zoznam - queue - vetvy, ktore treba spravit:
 #od kazdeho source az po joiner/union - univerzalne po hocijaky objekt, do ktoreho idu viac ako 1 unique connectory, connectory z roznych FROMINSTANCE
 #od takeho objektu zas az pokial tiez nie je v ceste taky na spajanie
 #program vytiahne zo zoznamu vetvu, spravi ju. musi byt pre kazdu vetvu spraveny kazdy nutny predchodca - teda zoznam tych objektov, z ktorych tam idu konektory, a pre kazdy objekt si pamatat ci uz bol navstiveny/spraveny/spracovany.
 #zo zoznamu teda tahat na spravenie len tie vetvy, ktore maju splnene nutne predpoklady
 #tabulka vsetkych objektov - z konektorov - a pri kazdom ci uz je "done"
-#tabulka/zoznam vsetkych vetiev so zoznamom nutnych predpokladov
+#tabulka/zoznam vsetkych vetiev zo zoznamom nutnych predpokladov
+
+#treba prechadzat aj po jednotlivych connectoroch, lebo  
