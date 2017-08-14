@@ -1,0 +1,6 @@
+{
+"SELECT": ["name":"edw_business", "alias":"edw_business", "source":"s1", "expr":""],
+"FROM": [{"table":"L0_VLE_NACE", "alias":"s1"}, {"table":"SK_TABLE", "alias":"s2", "connector":{"type":"lookup", "master":"s1", "on":"cd_key = dgfx"}}],
+"WHERE": ["edw_business > edw_business"]
+"included_objects":["Source...", "SQ", ...]
+}

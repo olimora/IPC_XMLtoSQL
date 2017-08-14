@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SELECT>
+	<COLUMN name="edw_business" alias="edw_business" source="sc1">
+		<EXPR value="IIF()" level="1"/>
+		<EXPR value="NULLIF()" level="2"/>
+	</COLUMN>
+	<TABLE name="L0_NA_NACE" alias="sc1"/>
+	<TABLE name="SK_TABLE" alias="sk1">
+		<CONNECTOR type="lookup" master="sc1" on="cd_..."/>
+	</TABLE>
+	<CONDITION value="and ljdnvfxl > sdgedgf"/>
+	<INCLUDED_OBJECT name="L0_klfjGDIWD"/>
+	<INCLUDED_OBJECT name="SQ_L0_klfjGDIWD"/>
+	<SELECT alias="sub1">
+		<COLUMN name="edw_business" alias="edw_business" source="sc1">
+			<EXPR value="IIF()" level="1"/>
+			<EXPR value="NULLIF()" level="2"/>
+		</COLUMN>
+		<TABLE name="L0_NA_NACE" alias="sc1"/>
+		<TABLE name="SK_TABLE" alias="sk1">
+			<CONNECTOR type="lookup" master="sc1" on="cd_..."/>
+		</TABLE>
+		<CONDITION value="and ljdnvfxl > sdgedgf"/>
+		<INCLUDED_OBJECT name="L0_klfjGDIWD"/>
+		<INCLUDED_OBJECT name="SQ_L0_klfjGDIWD"/>
+	</SELECT>
+</SELECT>
+
