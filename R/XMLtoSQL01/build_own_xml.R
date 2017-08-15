@@ -1,11 +1,18 @@
 library("xml2")
 library("XML")
 
-process_source_table <- function(source) {
+to_oracle_syntax <- function(input) {
+  input <- gsub("\\$\\$", "$", input)
+  input <- gsub("&lt;", "<", input) 
+  input <- gsub("&gt;", ">", input)
+  return(input)
+}
+
+process_source_table <- function(xml_query, source) {
   # create main SELECT node 
   no_select <- no_select+1
   curr_select <- paste0("sub", no_select)
-  select_node <- newXMLNode("SELECT", attrs = c(alias = curr_select))
+  select_node <- newXMLNode("SELECT", attrs = c(alias = curr_select), doc = xml_query)
   
   # add TABLE node inside
   no_source <- no_source+1
@@ -28,33 +35,82 @@ process_source_table <- function(source) {
              parent = select_node)
   
   # return whole SELECT node back
-  return(select_node)
+  return(xml_query)
+}
+
+update_column_aliases <- function(xml_query, from_name, to_name) {
+  #get connectors from from_name object - na zmenu aliasu column
+  curr_connectors <- subset(connectors_all_df, from_instance == from_name & to_instance == to_name)
+  for (i_conn in 1:nrow(curr_connectors)) {
+    from_field <- curr_connectors$from_field[i_conn]
+    to_field <- curr_connectors$to_field[i_conn]
+    if (from_field != to_field) { # need to update alias
+      # find in xml_query column s aliasom $from_field, zmenit ho na $to_field
+      xpathApply(xml_query, paste0("//COLUMN[@alias='", from_field, "']"), 
+                 addAttributes, alias = to_field)
+    } # else # no need to update alias
+  }
+  return(xml_query)
 }
 
 process_source_qualifier <- function(xml_query, source, from_name) {
-  
-  #get connectors from from_name object - na zmenu aliasu column
-  curr_connectors <- subset(connectors_all_df, from_instance == from_name & to_instance == xml_attr(source, "NAME"))
-  for (i_conn in 1:nrow(curr_connectors)) {
-    if (curr_connectors$from_field[i_conn] != curr_connectors$to_field[i_conn]) { # need to update alias
-      # find in xml_query column s aliasom $from_field, zmenit ho na $to_field
-      #col <- xml_find_all(xml_query, paste0(".//COLUMN[@alias='", curr_connectors$from_field[i_conn] ,"']"))
-      #addAttributes() / removeAttributes()
-      col <- xmlChildren(xml_query, F) #je ich vela. prejst v cykle, kde attribut... alebo ina library piceee
-    } # else # no need to update alias
-  }
+  xml_query <- update_column_aliases(xml_query, from_name, xml_attr(source, "NAME"))
   
   # condition - only if exists 
   condition_node <- xml_find_all(source, ".//TABLEATTRIBUTE[@NAME='Source Filter']") 
   if (length(condition_node) == 1) {
-    newXMLNode("CONDITION", attrs = c(value = xml_attr(condition_node, "VALUE")),
-               parent = xml_query)
+    cond_value <- xml_attr(condition_node, "VALUE")
+    newXMLNode("CONDITION", attrs = c(value = cond_value),
+               parent = getNodeSet(xml_query, "//SELECT")[1])
     # aliasy stlpcov v podmienke!!! TODO
   } else {
     print("error2002")
   }
   
   # return whole xml_query back
+  return(xml_query)
+}
+
+process_filter <- function(xml_query, source, from_name) {
+  xml_query <- update_column_aliases(xml_query, from_name, xml_attr(source, "NAME"))
+  
+  # condition - only if exists 
+  condition_node <- xml_find_all(source, ".//TABLEATTRIBUTE[@NAME='Filter Condition']") 
+  if (length(condition_node) == 1) {
+    cond_value <- xml_attr(condition_node, "VALUE")
+    newXMLNode("CONDITION", attrs = c(value = cond_value),
+               parent = getNodeSet(xml_query, "//SELECT")[1])
+    # aliasy stlpcov v podmienke!!! TODO
+  } else {
+    print("error2003")
+  }
+  
+  # return whole xml_query back
+  return(xml_query)
+}
+
+process_expression <- function(xml_query, source, from_name) {
+  xml_query <- update_column_aliases(xml_query, from_name, xml_attr(source, "NAME"))
+  
+  # check for adding columns
+  # get all TRANSFORMFIELD tags, 
+  transformfields <- xml_find_all(source, ".//TRANSFORMFIELD")
+  # check NAME attr
+  for (trans in transformfields) {
+    name <- xml_attr(trans, "NAME")
+    # ak taky nie je v COLUMN -- v mojom xml,
+    if (length(getNodeSet(xml_query, paste0("//COLUMN[@alias='", name, "']"))) == 0) {
+      # tak tam taky column pridam s expression z EXPRESSION attr
+      newXMLNode("COLUMN", attrs = c(name = name,
+                                     alias = name,
+                                     source = xml_attr(source, "NAME")), # pozret podla connectors source toho stlpca, odkial ide //alebo v mojom xml, v COLUMN podla mena
+                 parent = getNodeSet(xml_query, "//SELECT")[1],
+                 .children = list(newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), level = 1))))
+      # prirobit vlozene tagy - expression
+      
+    }
+  }
+
   return(xml_query)
 }
 
@@ -66,10 +122,14 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   print(node_tag)
   print(node_name)
   print(node_type)
-  if (is.null(xml_query) && node_tag == "SOURCE") {                       # source
-    xml_query <- process_source_table(xml_node)
+  if (node_tag == "SOURCE") {                       # source
+    xml_query <- process_source_table(xml_query, xml_node)
   } else if (node_type == "Source Qualifier") {     # SQ
     xml_query <- process_source_qualifier(xml_query, xml_node, from_name)
+  } else if (node_type == "Filter") {               # Filter
+    xml_query <- process_filter(xml_query, xml_node, from_name)  
+  } else if (node_type == "Expression") {           # Expression
+    xml_query <- process_expression(xml_query, xml_node, from_name)  
   }
   
   # check outgoing connectors - where to go
@@ -91,6 +151,23 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   }
   
   return(xml_query)
+}
+
+my_xml_to_sql <- function(xml_query) {
+  select_part <- "SELECT"
+  from_part <- "FROM"
+  where_part <- "WHERE"
+  
+  # columns to select
+  columns <- getNodeSet(xml_query, "//COLUMN")
+  for (i in 1:length(columns)) {
+    row <- xmlAttrs(columns[i][1])
+    if (i == 1) { #prvy, bez ciarky na zaciatku (koniec predchadzajuceho)
+      #select_part <- paste0(select_part, )
+    } else { #ostatne
+      
+    }
+  }
   
 }
 
@@ -122,16 +199,11 @@ rm("from_instance", "to_instance", "from_field", "to_field")
 ## find all sources ################
 sources <- xml_find_all(xml_input, ".//SOURCE")
 
+xml_query <- newXMLDoc()
 for (src in sources) {
-  xml_query <- process_general_object(NULL, src, xml_input, NULL)
+  xml_query <- process_general_object(xml_query, src, xml_input, NULL)
 }
 
-
-
-## pozret na unique connectory, ze kam sa ide od tialto, prejst na ten novy objekt
-## tu ak je to SQ, tak vykonaj ---
-## vsetky connectory od predchadzajuceho sem, pozret ci sa nezmeni nazov stlpcov -- teda alias ci sa nemeni
-## pole source filter do WHERE 
-## <TABLEATTRIBUTE NAME ="Source Filter" VALUE ="edw_business_date = to_date(&apos;$$BUSINESS_DATE&apos;,&apos;YYYYMMDDHH24MISS&apos;)"/>
+sql_query <- my_xml_to_sql(xml_query)
 
 
