@@ -156,7 +156,7 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
 xml_to_sql <- function(xml_query) {
   select_part <- "SELECT"
   from_part <- "FROM"
-  where_part <- "WHERE"
+  where_part <- "WHERE 1=1"
   
   # columns to select
   #TODO: expressions z columnov
@@ -166,13 +166,38 @@ xml_to_sql <- function(xml_query) {
     row <- xmlAttrs(columns[i][[1]])
     #print(row)
     if (i == 1) { #prvy, bez ciarky na zaciatku (koniec predchadzajuceho)
-      select_part <- cat(select_part, paste0(row[3], ".", row[1], " AS ", row[2]), sep = "\n")
+      select_part <- paste(select_part, "\n", paste0(row[3], ".", row[1], " AS ", row[2]))
     } else { #ostatne
-      select_part <- cat(select_part, paste0(", ", row[3], ".", row[1], " AS ", row[2]), sep = "\n")
+      select_part <- paste(select_part, "\n", paste0(", ", row[3], ".", row[1], " AS ", row[2]))
     }
   }
   
-  print(select_part)
+  #print(select_part)
+  
+  # tables and joins
+  # schemu pred tabulku . ako string pred prvym "_" ?
+  tables <- getNodeSet(xml_query, "//TABLE")
+  for (i in 1:length(tables)) {
+    row <- xmlAttrs(tables[i][[1]])
+    if (i == 1) { # prva tabulka, bez joinu
+      from_part <- paste(from_part, paste0(row[1], " AS ", row[2]))
+    } else { # join
+      from_part <- paste(from_part, paste0("JOIN ", row[1], " AS ", row[2]), "\n") #TODO: on .... 
+    }
+  }
+  
+  #print(from_part)
+  
+  # conditions
+  # TODO: aliasy v podmienkach. da sa? -> podla koenktorov, ze odkial idu?, aliasy nazvu objektu v mappingu?
+  conditions <- getNodeSet(xml_query, "//CONDITION")
+  for (i in 1:length(conditions)) {
+    row <- xmlAttrs(conditions[i][[1]])
+    where_part <- paste(where_part, "\n", paste0("AND ", row[1]))
+  }
+  
+  print(cat(select_part, "\n", from_part, "\n", where_part))
+  #TODO: cat() dava "NULL" na konci
 
 }
 
