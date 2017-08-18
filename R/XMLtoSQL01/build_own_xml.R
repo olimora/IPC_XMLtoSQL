@@ -119,9 +119,9 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   node_tag <- xml_name(xml_node)
   node_name <- xml_attr(xml_node, "NAME")
   node_type <- xml_attr(xml_node, "TYPE")
-  print(node_tag)
-  print(node_name)
-  print(node_type)
+  # print(node_tag)
+  # print(node_name)
+  # print(node_type)
   if (node_tag == "SOURCE") {                       # source
     xml_query <- process_source_table(xml_query, xml_node)
   } else if (node_type == "Source Qualifier") {     # SQ
@@ -139,9 +139,9 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   target_inc_connectors <- subset(connectors_unique_df, to_instance == outgoing_connectors$to_instance)
   if (nrow(outgoing_connectors) == 1 && nrow(target_inc_connectors) == 1) { #straight line of succesion
     target_xpath <- paste0("//*[not(name()='INSTANCE') and @NAME='", outgoing_connectors$to_instance[1], "']")
-    print(target_xpath)
+    #print(target_xpath)
     target_node <- xml_find_all(xml_input, target_xpath)
-    print(target_node)
+    #print(target_node)
     if (length(target_node) != 1) {
       print("error2001")
     }
@@ -153,22 +153,27 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   return(xml_query)
 }
 
-my_xml_to_sql <- function(xml_query) {
+xml_to_sql <- function(xml_query) {
   select_part <- "SELECT"
   from_part <- "FROM"
   where_part <- "WHERE"
   
   # columns to select
+  #TODO: expressions z columnov
+  #TODO: src. - pri tych co su z exp_src_cd - vyriesit tak asi ze tam nebude ziadny source
   columns <- getNodeSet(xml_query, "//COLUMN")
   for (i in 1:length(columns)) {
-    row <- xmlAttrs(columns[i][1])
+    row <- xmlAttrs(columns[i][[1]])
+    #print(row)
     if (i == 1) { #prvy, bez ciarky na zaciatku (koniec predchadzajuceho)
-      #select_part <- paste0(select_part, )
+      select_part <- cat(select_part, paste0(row[3], ".", row[1], " AS ", row[2]), sep = "\n")
     } else { #ostatne
-      
+      select_part <- cat(select_part, paste0(", ", row[3], ".", row[1], " AS ", row[2]), sep = "\n")
     }
   }
   
+  print(select_part)
+
 }
 
 ## global variables ##########
@@ -204,6 +209,6 @@ for (src in sources) {
   xml_query <- process_general_object(xml_query, src, xml_input, NULL)
 }
 
-sql_query <- my_xml_to_sql(xml_query)
+sql_query <- xml_to_sql(xml_query)
 
 
