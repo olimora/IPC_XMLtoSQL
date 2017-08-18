@@ -30,9 +30,12 @@ process_source_table <- function(xml_query, source) {
                parent = select_node)
   }
   
+  # # add INCLUDED_OBJECT node inside
+  # newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME")),
+  #            parent = select_node)
   # add INCLUDED_OBJECT node inside
-  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME")),
-             parent = select_node)
+  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = curr_source),
+             parent = getNodeSet(xml_query, "//SELECT")[[1]])
   
   # return whole SELECT node back
   return(xml_query)
@@ -67,6 +70,9 @@ process_source_qualifier <- function(xml_query, source, from_name) {
     print("error2002")
   }
   
+  # newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = curr_source),
+  #            parent = getNodeSet(xml_query, "//SELECT")[[1]])
+  
   # return whole xml_query back
   return(xml_query)
 }
@@ -84,6 +90,9 @@ process_filter <- function(xml_query, source, from_name) {
   } else {
     print("error2003")
   }
+  
+  # newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = curr_source),
+  #            parent = getNodeSet(xml_query, "//SELECT")[[1]])
   
   # return whole xml_query back
   return(xml_query)
@@ -103,13 +112,16 @@ process_expression <- function(xml_query, source, from_name) {
       # tak tam taky column pridam s expression z EXPRESSION attr
       newXMLNode("COLUMN", attrs = c(name = name,
                                      alias = name,
-                                     source = xml_attr(source, "NAME")), # pozret podla connectors source toho stlpca, odkial ide //alebo v mojom xml, v COLUMN podla mena
+                                     source = xml_attr(source, "NAME")), # TODO: pozret podla connectors source toho stlpca, odkial ide - v kazdom INCLUDED_OBJECT moze byt alias, ktory sa tuto bude tahat uz od zdroja. mozem pozret ze odkial som prisiel (from_name), a aky tam je alias //alebo v mojom xml, v COLUMN podla mena
                  parent = getNodeSet(xml_query, "//SELECT")[1],
                  .children = list(newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), level = 1))))
       # prirobit vlozene tagy - expression
       
     }
   }
+  
+  # newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = curr_source),
+  #            parent = getNodeSet(xml_query, "//SELECT")[[1]])
 
   return(xml_query)
 }
@@ -131,6 +143,10 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   } else if (node_type == "Expression") {           # Expression
     xml_query <- process_expression(xml_query, xml_node, from_name)  
   }
+  
+  
+  ## usporiadat tagy - opravit. nejde zmenit deti takto. prava strana je dobra
+  #xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]) <- c(xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]))[c(order(factor(names(getNodeSet(xml_query, "//SELECT")[[1]]), levels = c("COLUMN","TABLE","CONDITION","INCLUDED_OBJECT"))))] 
   
   # check outgoing connectors - where to go
   # if only one, can go
