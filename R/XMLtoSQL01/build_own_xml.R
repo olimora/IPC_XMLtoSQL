@@ -131,7 +131,7 @@ process_expression <- function(xml_query, source_in, from_name) {
                  parent = getNodeSet(xml_query, "//SELECT")[1],
                  .children = list(newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), 
                                                                      level = 1, object = xml_attr(source_in, "NAME")))))
-      # prirobit vlozene tagy - expression
+      # prirobit vlozene tagy - expression - tu nad tymto riadko je to uz
       
     }
   }
@@ -195,13 +195,20 @@ xml_to_sql <- function(xml_query) {
   #TODO: src. - pri tych co su z exp_src_cd - vyriesit tak asi ze tam nebude ziadny source
   columns <- getNodeSet(xml_query, "//COLUMN")
   for (i in 1:length(columns)) {
-    row <- xmlAttrs(columns[i][[1]])
-    #print(row)
+    attrs <- xmlAttrs(columns[i][[1]])
+    added_row <- paste0(attrs['source'], ".", attrs['name'], " AS ", attrs['alias'])
+    # ak ma EXPRESSION, tak pridat do komentu TODO: ################################################################!!!!!!!
+    # exprs <- getNodeSet(xml_query, paste0("//COLUMN[@name='", attrs['name'], "' and @alias='", attrs['alias'], "' and @source='", attrs['source'], "']",
+    #                                       "/EXPRESSION"))
+    # for (i in 1:length(exprs)) {
+    #   added_row <- paste0(added_row, " --", xmlAttrs(exprs[i][[1]]['value']))
+    # }
     if (i == 1) { #prvy, bez ciarky na zaciatku (koniec predchadzajuceho)
-      select_part <- paste(select_part, "\n", paste0(row['source'], ".", row['name'], " AS ", row['alias']))
+      select_part <- paste(select_part, "\n", paste0(added_row))
     } else { #ostatne
-      select_part <- paste(select_part, "\n", paste0(", ", row['source'], ".", row['name'], " AS ", row['alias']))
+      select_part <- paste(select_part, "\n", paste0(", ", added_row))
     }
+    
   }
   
   #print(select_part)
