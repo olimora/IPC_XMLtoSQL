@@ -8,6 +8,22 @@ to_oracle_syntax <- function(input) {
   return(input)
 }
 
+trace_source <- function(object_name) {
+  ret <- NULL
+  from_object <- subset(connectors_unique_df, to_instance == object_name)$from_instance
+  if (length(from_object) > 1) { #problem - vetvenie, dva do jednoho ako pri union/join, STOP! alebo trace len do jednej vetvy
+    print("error8001")
+  } else if (length(from_object) == 0) { #nie je uz ziadny predchadzajuci objekt, return alias
+    ret <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", object_name, "']"))[[1]])['alias']) #vrati vektor attributov, druhy je alias
+  } else if (length(from_object) == 1) { #jeden predchadzajuci, call itself
+    ret <- trace_source(from_object)
+  } else { #necakane
+    print("error8002")
+  }
+  #print(ret)
+  return(ret)
+}
+
 process_source_table <- function(xml_query, source) {
   # create main SELECT node 
   no_select <- no_select+1
@@ -30,9 +46,6 @@ process_source_table <- function(xml_query, source) {
                parent = select_node)
   }
   
-  # # add INCLUDED_OBJECT node inside
-  # newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME")),
-  #            parent = select_node)
   # add INCLUDED_OBJECT node inside
   newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = curr_source),
              parent = getNodeSet(xml_query, "//SELECT")[[1]])
@@ -63,15 +76,15 @@ process_source_qualifier <- function(xml_query, source, from_name) {
   condition_node <- xml_find_all(source, ".//TABLEATTRIBUTE[@NAME='Source Filter']") 
   if (length(condition_node) == 1) {
     cond_value <- xml_attr(condition_node, "VALUE")
-    newXMLNode("CONDITION", attrs = c(value = cond_value),
+    newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(source, "NAME")),
                parent = getNodeSet(xml_query, "//SELECT")[1])
     # aliasy stlpcov v podmienke!!! TODO
   } else {
     print("error2002")
   }
   
-  # newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = curr_source),
-  #            parent = getNodeSet(xml_query, "//SELECT")[[1]])
+  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = xml_attr(source, "NAME")), #TODO: alias 
+             parent = getNodeSet(xml_query, "//SELECT")[[1]])
   
   # return whole xml_query back
   return(xml_query)
@@ -84,45 +97,48 @@ process_filter <- function(xml_query, source, from_name) {
   condition_node <- xml_find_all(source, ".//TABLEATTRIBUTE[@NAME='Filter Condition']") 
   if (length(condition_node) == 1) {
     cond_value <- xml_attr(condition_node, "VALUE")
-    newXMLNode("CONDITION", attrs = c(value = cond_value),
+    newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(source, "NAME")),
                parent = getNodeSet(xml_query, "//SELECT")[1])
     # aliasy stlpcov v podmienke!!! TODO
   } else {
     print("error2003")
   }
   
-  # newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = curr_source),
-  #            parent = getNodeSet(xml_query, "//SELECT")[[1]])
+  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = xml_attr(source, "NAME")), #TODO: alias
+             parent = getNodeSet(xml_query, "//SELECT")[[1]])
   
   # return whole xml_query back
   return(xml_query)
 }
 
-process_expression <- function(xml_query, source, from_name) {
-  xml_query <- update_column_aliases(xml_query, from_name, xml_attr(source, "NAME"))
+process_expression <- function(xml_query, source_in, from_name) {
+  xml_query <- update_column_aliases(xml_query, from_name, xml_attr(source_in, "NAME"))
   
   # check for adding columns
   # get all TRANSFORMFIELD tags, 
-  transformfields <- xml_find_all(source, ".//TRANSFORMFIELD")
+  transformfields <- xml_find_all(source_in, ".//TRANSFORMFIELD")
   # check NAME attr
   for (trans in transformfields) {
     name <- xml_attr(trans, "NAME")
     # ak taky nie je v COLUMN -- v mojom xml,
     if (length(getNodeSet(xml_query, paste0("//COLUMN[@alias='", name, "']"))) == 0) {
       # tak tam taky column pridam s expression z EXPRESSION attr
-      newXMLNode("COLUMN", attrs = c(name = name,
-                                     alias = name,
-                                     source = xml_attr(source, "NAME")), # TODO: pozret podla connectors source toho stlpca, odkial ide - v kazdom INCLUDED_OBJECT moze byt alias, ktory sa tuto bude tahat uz od zdroja. mozem pozret ze odkial som prisiel (from_name), a aky tam je alias //alebo v mojom xml, v COLUMN podla mena
+      # unique connectors back to the source 
+      ##TODO: neskor - nech sa zastavi na nejakom rozdeleni/spoji ako join/union, a nech ten je ten zdroj, alebo sa pozret z ktorej z joinovanych tabuliek ide
+      source_alias <- trace_source(xml_attr(source_in, "NAME"))
+      newXMLNode("COLUMN", attrs = c(name = name, alias = name,
+                                     source = source_alias), # TODO: pozret podla connectors source toho stlpca, odkial ide - v kazdom INCLUDED_OBJECT moze byt alias, ktory sa tuto bude tahat uz od zdroja. mozem pozret ze odkial som prisiel (from_name), a aky tam je alias //alebo v mojom xml, v COLUMN podla mena
                  parent = getNodeSet(xml_query, "//SELECT")[1],
-                 .children = list(newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), level = 1))))
+                 .children = list(newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), 
+                                                                     level = 1, object = xml_attr(source_in, "NAME")))))
       # prirobit vlozene tagy - expression
       
     }
   }
   
-  # newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = curr_source),
-  #            parent = getNodeSet(xml_query, "//SELECT")[[1]])
-
+  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source_in, "NAME"), alias = xml_attr(source_in, "NAME")), #TODO: alias
+             parent = getNodeSet(xml_query, "//SELECT")[[1]])
+  
   return(xml_query)
 }
 
@@ -182,9 +198,9 @@ xml_to_sql <- function(xml_query) {
     row <- xmlAttrs(columns[i][[1]])
     #print(row)
     if (i == 1) { #prvy, bez ciarky na zaciatku (koniec predchadzajuceho)
-      select_part <- paste(select_part, "\n", paste0(row[3], ".", row[1], " AS ", row[2]))
+      select_part <- paste(select_part, "\n", paste0(row['source'], ".", row['name'], " AS ", row['alias']))
     } else { #ostatne
-      select_part <- paste(select_part, "\n", paste0(", ", row[3], ".", row[1], " AS ", row[2]))
+      select_part <- paste(select_part, "\n", paste0(", ", row['source'], ".", row['name'], " AS ", row['alias']))
     }
   }
   
@@ -196,9 +212,9 @@ xml_to_sql <- function(xml_query) {
   for (i in 1:length(tables)) {
     row <- xmlAttrs(tables[i][[1]])
     if (i == 1) { # prva tabulka, bez joinu
-      from_part <- paste(from_part, paste0(row[1], " AS ", row[2]))
+      from_part <- paste(from_part, paste0(row['name'], " AS ", row['alias']))
     } else { # join
-      from_part <- paste(from_part, paste0("JOIN ", row[1], " AS ", row[2]), "\n") #TODO: on .... 
+      from_part <- paste(from_part, paste0("JOIN ", row['name'], " AS ", row['alias']), "\n") #TODO: on .... 
     }
   }
   
