@@ -238,10 +238,11 @@ xml_to_sql <- function(xml_query) {
   conditions <- getNodeSet(xml_query, "//CONDITION")
   for (i in 1:length(conditions)) {
     row <- xmlAttrs(conditions[i][[1]])
-    where_part <- paste(where_part, "\n", paste0("AND ", row[1]))
+    where_part <- paste(where_part, "\n", paste0(" AND ", row[1]))
   }
   
-  print(cat(select_part, "\n", from_part, "\n", where_part))
+  whole_query <- paste(select_part, from_part, where_part, sep = "\n")
+  writeLines(whole_query)
   #TODO: cat() dava "NULL" na konci
 
 }
