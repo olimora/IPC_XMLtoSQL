@@ -162,7 +162,10 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   
   
   ## usporiadat tagy - opravit. nejde zmenit deti takto. prava strana je dobra
-  #xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]) <- c(xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]))[c(order(factor(names(getNodeSet(xml_query, "//SELECT")[[1]]), levels = c("COLUMN","TABLE","CONDITION","INCLUDED_OBJECT"))))] 
+  slct <- getNodeSet(xml_query, "//SELECT")[[1]]
+  xmlChildren(slct) <- c(xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]))[c(order(factor(names(getNodeSet(xml_query, "//SELECT")[[1]]), levels = c("COLUMN","TABLE","CONDITION","INCLUDED_OBJECT"))))] 
+  # nahradit select v xml_query tymto usporadanym v slct - inspiracia z riadku hore? 
+  xml_query <- newXMLDoc(node = slct)
   
   # check outgoing connectors - where to go
   # if only one, can go
@@ -197,12 +200,15 @@ xml_to_sql <- function(xml_query) {
   for (i in 1:length(columns)) {
     attrs <- xmlAttrs(columns[i][[1]])
     added_row <- paste0(attrs['source'], ".", attrs['name'], " AS ", attrs['alias'])
-    # ak ma EXPRESSION, tak pridat do komentu TODO: ################################################################!!!!!!!
-    # exprs <- getNodeSet(xml_query, paste0("//COLUMN[@name='", attrs['name'], "' and @alias='", attrs['alias'], "' and @source='", attrs['source'], "']",
-    #                                       "/EXPRESSION"))
-    # for (i in 1:length(exprs)) {
-    #   added_row <- paste0(added_row, " --", xmlAttrs(exprs[i][[1]]['value']))
-    # }
+    # ak ma EXPRESSION, tak pridat do komentu 
+    exprs <- getNodeSet(xml_query, paste0("//COLUMN[@name='", attrs['name'], "' and @alias='", attrs['alias'], "' and @source='", attrs['source'], "']",
+                                          "/EXPRESSION"))
+    if (!is.null(exprs[1][[1]])) {
+      for (j in 1:length(exprs)) {
+        added_row <- paste0(added_row, " --", unname(xmlAttrs(exprs[j][[1]])['value']))
+      }
+    }
+
     if (i == 1) { #prvy, bez ciarky na zaciatku (koniec predchadzajuceho)
       select_part <- paste(select_part, "\n", paste0(added_row))
     } else { #ostatne
