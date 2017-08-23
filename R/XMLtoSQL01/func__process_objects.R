@@ -19,6 +19,12 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   # print(node_tag)
   # print(node_name)
   # print(node_type)
+  
+  # update aliases on columns
+  if (node_tag != "SOURCE") { #another condition needed?
+    xml_query <- update_column_aliases(xml_query, from_name, xml_attr(xml_node, "NAME"))
+  }
+  
   if (node_tag == "SOURCE") {                       # source
     xml_query <- process_source_table(xml_query, xml_node)
   } else if (node_type == "Source Qualifier") {     # SQ
@@ -28,6 +34,12 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   } else if (node_type == "Expression") {           # Expression
     xml_query <- process_expression(xml_query, xml_node, from_name)  
   }
+  
+  # TODO: to co je v kazdej funkcii - INCLUDED tag, so sourcom toho spracovaneho predtym
+  # source toho spracovaneho predtym - vytiahnut z xml_query podla from_name
+  # ak nema from_name - to je - je to SOURCE, tak vytvorim alias
+  # ak som ale na JOINe, tak co ? vyriesim potom - novy alias?
+  
   
   ## sort tags to make XML more readable
   slct <- getNodeSet(xml_query, "//SELECT")[[1]]
@@ -56,14 +68,16 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
 
 
 process_source_table <- function(xml_query, source) {
-  # create main SELECT node 
-  no_select <- no_select+1
-  curr_select <- paste0("sub", no_select)
+  # global variables 
+  counters_env$select_no <- counters_env$select_no+1
+  curr_select <- paste0("sub", counters_env$select_no)
+  counters_env$source_no <- counters_env$source_no+1
+  curr_source <- paste0("src", counters_env$source_no)
+  
+  # create main SELECT node
   select_node <- newXMLNode("SELECT", attrs = c(alias = curr_select), doc = xml_query)
   
   # add TABLE node inside
-  no_source <- no_source+1
-  curr_source <- paste0("src", no_source)
   newXMLNode("TABLE", attrs = c(name = xml_attr(source, "NAME"), 
                                 alias = curr_source),
              parent = select_node)
@@ -86,8 +100,6 @@ process_source_table <- function(xml_query, source) {
 }
 
 process_source_qualifier <- function(xml_query, source, from_name) {
-  xml_query <- update_column_aliases(xml_query, from_name, xml_attr(source, "NAME"))
-  
   # condition - only if exists 
   condition_node <- xml_find_all(source, ".//TABLEATTRIBUTE[@NAME='Source Filter']") 
   if (length(condition_node) == 1) {
@@ -107,8 +119,6 @@ process_source_qualifier <- function(xml_query, source, from_name) {
 }
 
 process_filter <- function(xml_query, source, from_name) {
-  xml_query <- update_column_aliases(xml_query, from_name, xml_attr(source, "NAME"))
-  
   # condition - only if exists 
   condition_node <- xml_find_all(source, ".//TABLEATTRIBUTE[@NAME='Filter Condition']") 
   if (length(condition_node) == 1) {
@@ -128,8 +138,6 @@ process_filter <- function(xml_query, source, from_name) {
 }
 
 process_expression <- function(xml_query, source_in, from_name) {
-  xml_query <- update_column_aliases(xml_query, from_name, xml_attr(source_in, "NAME"))
-  
   # check for adding columns
   # get all TRANSFORMFIELD tags, 
   transformfields <- xml_find_all(source_in, ".//TRANSFORMFIELD")

@@ -13,12 +13,10 @@ to_oracle_syntax <- function(input) {
 }
 
 
-
-
-
 ## global variables ##########
-no_select <- 0
-no_source <- 0
+counters_env <- new.env()
+counters_env$select_no <- 0
+#counters_env$source_no <- 0
 
 #read xml
 xml_input <- read_xml("example.xml")
