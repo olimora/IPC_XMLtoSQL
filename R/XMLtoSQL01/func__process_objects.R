@@ -25,6 +25,7 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
     xml_query <- update_column_aliases(xml_query, from_name, xml_attr(xml_node, "NAME"))
   }
   
+  # process xml mapping object
   if (node_tag == "SOURCE") {                       # source
     xml_query <- process_source_table(xml_query, xml_node)
   } else if (node_type == "Source Qualifier") {     # SQ
@@ -35,17 +36,21 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
     xml_query <- process_expression(xml_query, xml_node, from_name)  
   }
   
-  # TODO: to co je v kazdej funkcii - INCLUDED tag, so sourcom toho spracovaneho predtym
-  # source toho spracovaneho predtym - vytiahnut z xml_query podla from_name
-  # ak nema from_name - to je - je to SOURCE, tak vytvorim alias
-  # ak som ale na JOINe, tak co ? vyriesim potom - novy alias?
-  
+  # add INCLUDED_OBJECT node inside
+  curr_source <- "NA"
+  if (is.null(from_name)) {     #make new
+    if (node_tag != "SOURCE") { counters_env$source_no <- counters_env$source_no+1  }
+    curr_source <- paste0("src", counters_env$source_no)
+  } else {        #find source alias from xml_query - INCLUDED with name == from_name
+    curr_source <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", from_name, "']"))[[1]])['alias'])
+  }
+  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(xml_node, "NAME"), alias = curr_source),
+             parent = getNodeSet(xml_query, "//SELECT")[[1]])
   
   ## sort tags to make XML more readable
   slct <- getNodeSet(xml_query, "//SELECT")[[1]]
   xmlChildren(slct) <- c(xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]))[c(order(factor(names(getNodeSet(xml_query, "//SELECT")[[1]]), levels = c("COLUMN","TABLE","CONDITION","INCLUDED_OBJECT"))))] 
-  # nahradit select v xml_query tymto usporadanym v slct - inspiracia z riadku hore? 
-  xml_query <- newXMLDoc(node = slct)
+  xml_query <- newXMLDoc(node = slct) 
   
   # check outgoing connectors - where to go
   # if only one, can go
@@ -59,13 +64,12 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
       print("error2001")
     }
     xml_query <- process_general_object(xml_query, target_node, xml_input, node_name)#z xml povodneho node s menom targetu)
-  } else {
+  } else { #TODO: - with branching problem
     
   }
   
   return(xml_query)
 }
-
 
 process_source_table <- function(xml_query, source) {
   # global variables 
@@ -90,11 +94,7 @@ process_source_table <- function(xml_query, source) {
                                    source = curr_source),
                parent = select_node)
   }
-  
-  # add INCLUDED_OBJECT node inside
-  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = curr_source),
-             parent = getNodeSet(xml_query, "//SELECT")[[1]])
-  
+
   # return whole SELECT node back
   return(xml_query)
 }
@@ -111,10 +111,6 @@ process_source_qualifier <- function(xml_query, source, from_name) {
     print("error2002")
   }
   
-  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = xml_attr(source, "NAME")), #TODO: alias - prenasat alias zo sourcu, ak teda je to jednoducha vetva. nemusi sa potom tracovat source dozadu az, ?
-             parent = getNodeSet(xml_query, "//SELECT")[[1]])
-  
-  # return whole xml_query back
   return(xml_query)
 }
 
@@ -129,9 +125,6 @@ process_filter <- function(xml_query, source, from_name) {
   } else {
     print("error2003")
   }
-  
-  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source, "NAME"), alias = xml_attr(source, "NAME")), #TODO: alias - to iste
-             parent = getNodeSet(xml_query, "//SELECT")[[1]])
   
   # return whole xml_query back
   return(xml_query)
@@ -159,9 +152,6 @@ process_expression <- function(xml_query, source_in, from_name) {
       
     }
   }
-  
-  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(source_in, "NAME"), alias = xml_attr(source_in, "NAME")), #TODO: alias -- to iste
-             parent = getNodeSet(xml_query, "//SELECT")[[1]])
   
   return(xml_query)
 }
