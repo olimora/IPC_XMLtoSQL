@@ -5,7 +5,7 @@
 # each adds COLUMNS, CONDITIONS ... to existing XML doc - xml_query
 # params: 
 #   xml_query - XML doc that we are building
-#   source - object from original XML to be processed
+#   xml_node - object from original XML to be processed
 #   from_name - name of object processed previously
 #
 #################################################################################
@@ -71,7 +71,7 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   return(xml_query)
 }
 
-process_source_table <- function(xml_query, source) {
+process_source_table <- function(xml_query, xml_node) {
   # global variables 
   counters_env$select_no <- counters_env$select_no+1
   curr_select <- paste0("sub", counters_env$select_no)
@@ -82,12 +82,12 @@ process_source_table <- function(xml_query, source) {
   select_node <- newXMLNode("SELECT", attrs = c(alias = curr_select), doc = xml_query)
   
   # add TABLE node inside
-  newXMLNode("TABLE", attrs = c(name = xml_attr(source, "NAME"), 
+  newXMLNode("TABLE", attrs = c(name = xml_attr(xml_node, "NAME"), 
                                 alias = curr_source),
              parent = select_node)
   
   # add COLUMN nodes inside
-  columns <- xml_find_all(source, ".//SOURCEFIELD") 
+  columns <- xml_find_all(xml_node, ".//SOURCEFIELD") 
   for (col in columns) {
     newXMLNode("COLUMN", attrs = c(name = xml_attr(col, "NAME"), 
                                    alias = xml_attr(col, "NAME"),
@@ -99,12 +99,12 @@ process_source_table <- function(xml_query, source) {
   return(xml_query)
 }
 
-process_source_qualifier <- function(xml_query, source, from_name) {
+process_source_qualifier <- function(xml_query, xml_node, from_name) {
   # condition - only if exists 
-  condition_node <- xml_find_all(source, ".//TABLEATTRIBUTE[@NAME='Source Filter']") 
+  condition_node <- xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Source Filter']") 
   if (length(condition_node) == 1) {
     cond_value <- xml_attr(condition_node, "VALUE")
-    newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(source, "NAME")),
+    newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(xml_node, "NAME")),
                parent = getNodeSet(xml_query, "//SELECT")[1])
     # TODO: doplnit aliasy stlpcov v podmienke (where cast);
   } else {
@@ -114,12 +114,12 @@ process_source_qualifier <- function(xml_query, source, from_name) {
   return(xml_query)
 }
 
-process_filter <- function(xml_query, source, from_name) {
+process_filter <- function(xml_query, xml_node, from_name) {
   # condition - only if exists 
-  condition_node <- xml_find_all(source, ".//TABLEATTRIBUTE[@NAME='Filter Condition']") 
+  condition_node <- xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Filter Condition']") 
   if (length(condition_node) == 1) {
     cond_value <- xml_attr(condition_node, "VALUE")
-    newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(source, "NAME")),
+    newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(xml_node, "NAME")),
                parent = getNodeSet(xml_query, "//SELECT")[1])
     # TODO: doplnit aliasy stlpcov v podmienke (where cast);
   } else {
@@ -130,10 +130,10 @@ process_filter <- function(xml_query, source, from_name) {
   return(xml_query)
 }
 
-process_expression <- function(xml_query, source_in, from_name) {
+process_expression <- function(xml_query, xml_node, from_name) {
   # check for adding columns
   # get all TRANSFORMFIELD tags, 
-  transformfields <- xml_find_all(source_in, ".//TRANSFORMFIELD")
+  transformfields <- xml_find_all(xml_node, ".//TRANSFORMFIELD")
   # check NAME attr
   for (trans in transformfields) {
     name <- xml_attr(trans, "NAME")
@@ -142,12 +142,12 @@ process_expression <- function(xml_query, source_in, from_name) {
       # tak tam taky column pridam s expression z EXPRESSION attr
       # unique connectors back to the source 
       ##TODO: neskor - nech sa zastavi na nejakom rozdeleni/spoji ako join/union, a nech ten je ten zdroj, alebo sa pozret z ktorej z joinovanych tabuliek ide
-      source_alias <- trace_source(xml_attr(source_in, "NAME"))
+      source_alias <- trace_source(xml_attr(xml_node, "NAME"))
       newXMLNode("COLUMN", attrs = c(name = name, alias = name,
                                      source = source_alias), 
                  parent = getNodeSet(xml_query, "//SELECT")[1],
                  .children = list(newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), 
-                                                                     level = 1, object = xml_attr(source_in, "NAME")))))
+                                                                     level = 1, object = xml_attr(xml_node, "NAME")))))
       # prirobit vlozene tagy - expression - tu nad tymto riadko je to uz
       
     }
