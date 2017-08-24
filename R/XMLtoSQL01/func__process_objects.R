@@ -142,7 +142,9 @@ process_expression <- function(xml_query, xml_node, from_name) {
       # tak tam taky column pridam s expression z EXPRESSION attr
       # unique connectors back to the source 
       ##TODO: neskor - nech sa zastavi na nejakom rozdeleni/spoji ako join/union, a nech ten je ten zdroj, alebo sa pozret z ktorej z joinovanych tabuliek ide
-      source_alias <- trace_source(xml_attr(xml_node, "NAME"))
+      # TODO: toto trace back uz netreba, staci pozret source alias z prveho predchadzajuceho
+      #source_alias <- trace_source(xml_attr(xml_node, "NAME"))
+      source_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", from_name, "']"))[[1]])['alias'])
       newXMLNode("COLUMN", attrs = c(name = name, alias = name,
                                      source = source_alias), 
                  parent = getNodeSet(xml_query, "//SELECT")[1],
