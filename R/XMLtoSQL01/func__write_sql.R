@@ -5,7 +5,9 @@
 # params: 
 #   xml_query - XML doc with query repres.
 #
+##################
 
+#TODO: rozdelit funkcionalitu na casti do funkcii - select_part/from/where
 xml_to_sql <- function(xml_query) {
   select_part <- "SELECT"
   from_part <- "FROM"
@@ -25,6 +27,14 @@ xml_to_sql <- function(xml_query) {
       }
     }
     
+    #TODO: expressions popridavat do column
+    #cyklus - pre kazdu expression na tomto column:
+    # level=1: zobrat column@name aj s column@source s bodkou pred column@name
+    # ostatne levely: zobrat vysledok predchadzajuceho kroku cyklu
+    # v expression nahradit nazov columnu tym opisanym v predch. kroku
+    # - ak sa tam nazov columnu nenachadza, tak prepisat celu expression touto novou hodnotou z aktualnej expression@value // to su tie kde je hned rovno hodnota ako 'XNA' alebo -1
+    # - pozerat viacere nazvy columnov, nie len ten, v ktorom je dana expression - podla aliasov? - podla aliasu najst, zobrat src.name/vysledok z predch. kroku
+    #!!!!!!!!!!! ak v expression exp/value == name, tak nedavat EXPRESSION tag do mojho xml, nechat to len na alias
     if (i == 1) { #prvy, bez ciarky na zaciatku (koniec predchadzajuceho)
       select_part <- paste(select_part, "\n", paste0(added_row))
     } else { #ostatne

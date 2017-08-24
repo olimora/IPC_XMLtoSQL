@@ -137,6 +137,8 @@ process_expression <- function(xml_query, xml_node, from_name) {
   # check NAME attr
   for (trans in transformfields) {
     name <- xml_attr(trans, "NAME")
+    source_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", from_name, "']"))[[1]])['alias'])
+    
     # ak taky nie je v COLUMN -- v mojom xml,
     if (length(getNodeSet(xml_query, paste0("//COLUMN[@alias='", name, "']"))) == 0) {
       # tak tam taky column pridam s expression z EXPRESSION attr
@@ -144,14 +146,24 @@ process_expression <- function(xml_query, xml_node, from_name) {
       ##TODO: neskor - nech sa zastavi na nejakom rozdeleni/spoji ako join/union, a nech ten je ten zdroj, alebo sa pozret z ktorej z joinovanych tabuliek ide
       # TODO: toto trace back uz netreba, staci pozret source alias z prveho predchadzajuceho
       #source_alias <- trace_source(xml_attr(xml_node, "NAME"))
-      source_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", from_name, "']"))[[1]])['alias'])
       newXMLNode("COLUMN", attrs = c(name = name, alias = name,
                                      source = source_alias), 
-                 parent = getNodeSet(xml_query, "//SELECT")[1],
-                 .children = list(newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), 
-                                                                     level = 1, object = xml_attr(xml_node, "NAME")))))
-      # prirobit vlozene tagy - expression - tu nad tymto riadko je to uz
-      
+                 parent = getNodeSet(xml_query, "//SELECT")[1])
+    } else { # ak taky column uz je v mojom xml
+      #nepridavam novy
+    }
+    
+    # add EXPRESSION to column      
+    #if @expression is the same as @name, dont put in the expression, 
+    expr_val <- xml_attr(trans, "EXPRESSION")
+    print(expr_val)
+    if (!is.na(expr_val) && expr_val != name) {
+      #get all number of expressions on that column + 1 for new level
+      exprs <- getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name,"' and @alias='", name, "' and @source='", source_alias, "']/EXPRESSION"))
+      expr_level <- length(exprs) + 1
+      newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), 
+                                         level = expr_level, object = xml_attr(xml_node, "NAME")),
+                 parent = getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name,"' and @alias='", name, "' and @source='", source_alias, "']"))[1])
     }
   }
   
