@@ -7,12 +7,17 @@
 #
 ##################
 
-#TODO: rozdelit funkcionalitu na casti do funkcii - select_part/from/where
 xml_to_sql <- function(xml_query) {
-  select_part <- "SELECT"
-  from_part <- "FROM"
-  where_part <- "WHERE 1=1"
+  select_part <- build_select_part(xml_query)
+  from_part <- build_from_part(xml_query)
+  where_part <- build_where_part(xml_query)
   
+  whole_query <- paste(select_part, from_part, where_part, sep = "\n")
+  return(whole_query)
+}
+
+build_select_part <- function(xml_query) {
+  select_part <- "SELECT"
   # columns to select
   columns <- getNodeSet(xml_query, "//COLUMN")
   for (i in 1:length(columns)) {
@@ -27,23 +32,17 @@ xml_to_sql <- function(xml_query) {
       }
     }
     
-    #TODO: expressions popridavat do column
-    #cyklus - pre kazdu expression na tomto column:
-    # level=1: zobrat column@name aj s column@source s bodkou pred column@name
-    # ostatne levely: zobrat vysledok predchadzajuceho kroku cyklu
-    # v expression nahradit nazov columnu tym opisanym v predch. kroku
-    # - ak sa tam nazov columnu nenachadza, tak prepisat celu expression touto novou hodnotou z aktualnej expression@value // to su tie kde je hned rovno hodnota ako 'XNA' alebo -1
-    # - pozerat viacere nazvy columnov, nie len ten, v ktorom je dana expression - podla aliasov? - podla aliasu najst, zobrat src.name/vysledok z predch. kroku
-    #!!!!!!!!!!! ak v expression exp/value == name, tak nedavat EXPRESSION tag do mojho xml, nechat to len na alias
     if (i == 1) { #prvy, bez ciarky na zaciatku (koniec predchadzajuceho)
       select_part <- paste(select_part, "\n", paste0(added_row))
     } else { #ostatne
       select_part <- paste(select_part, "\n", paste0(", ", added_row))
     }
-    
   }
-  #print(select_part)
-  
+  return(select_part)
+}
+
+build_from_part <- function(xml_query) {
+  from_part <- "FROM"
   # tables and joins
   tables <- getNodeSet(xml_query, "//TABLE")
   for (i in 1:length(tables)) {
@@ -56,18 +55,18 @@ xml_to_sql <- function(xml_query) {
       from_part <- paste(from_part, paste0("JOIN ", added_row, "\n")) #TODO: "on ... and ..." 
     }
   }
-  #print(from_part)
-  
+  return(from_part)
+}
+
+build_where_part <- function(xml_query) {
+  where_part <- "WHERE 1=1"
   # conditions
-  # TODO: aliasy v podmienkach. da sa? -> podla koenktorov, ze odkial idu?, aliasy nazvu objektu v mappingu?
   conditions <- getNodeSet(xml_query, "//CONDITION")
   for (i in 1:length(conditions)) {
     attrs <- xmlAttrs(conditions[i][[1]])
     where_part <- paste(where_part, "\n", paste0(" AND ", attrs[1]))
   }
-  
-  whole_query <- paste(select_part, from_part, where_part, sep = "\n")
-  return(whole_query)
+  return(where_part)
 }
 
 get_scheme_for_table <- function(table_name) {
