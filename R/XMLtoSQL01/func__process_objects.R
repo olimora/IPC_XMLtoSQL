@@ -162,7 +162,7 @@ process_expression <- function(xml_query, xml_node, from_name) {
       repls <- append(repls, curr_r)
     }, error = function(err) {
       # error handler picks up where error was generated
-      print(paste("ERROR 7001 (process_expression, column name in expression replacement):  ",err))
+      print(paste0("EXPECTED ERROR 7001 (process_expression, column name in expression replacement for '",curr_f,"'):  ",err))
     })
   }
   # check NAME attr
