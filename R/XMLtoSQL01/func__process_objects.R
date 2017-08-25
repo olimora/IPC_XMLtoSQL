@@ -104,9 +104,17 @@ process_source_qualifier <- function(xml_query, xml_node, from_name) {
   condition_node <- xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Source Filter']") 
   if (length(condition_node) == 1) {
     cond_value <- xml_attr(condition_node, "VALUE")
+    # add scheme to column names (replace with scheme before the column name)
+    transformfields <- xml_find_all(xml_node, ".//TRANSFORMFIELD")
+    for (tf in transformfields) {
+      find <- xml_attr(tf, "NAME")
+      src_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//SELECT/COLUMN[@alias='", find, "']"))[[1]])['source'])
+      cond_value <- gsub(paste0("([^a-zA-Z0-9]*)(",find,")([^a-zA-Z0-9]*)"), #pattern
+                         paste0("\\1",src_alias,".",find,"\\3"), #replacement 
+                         cond_value, ignore.case = T)
+    }
     newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(xml_node, "NAME")),
                parent = getNodeSet(xml_query, "//SELECT")[1])
-    # TODO: doplnit aliasy stlpcov v podmienke (where cast);
   } else {
     print("error2002")
   }
@@ -119,9 +127,17 @@ process_filter <- function(xml_query, xml_node, from_name) {
   condition_node <- xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Filter Condition']") 
   if (length(condition_node) == 1) {
     cond_value <- xml_attr(condition_node, "VALUE")
+    # add scheme to column names (replace with scheme before the column name)
+    transformfields <- xml_find_all(xml_node, ".//TRANSFORMFIELD")
+    for (tf in transformfields) {
+      find <- xml_attr(tf, "NAME")
+      src_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//SELECT/COLUMN[@alias='", find, "']"))[[1]])['source'])
+      cond_value <- gsub(paste0("([^a-zA-Z0-9]*)(",find,")([^a-zA-Z0-9]*)"), #pattern
+                         paste0("\\1",src_alias,".",find,"\\3"), #replacement 
+                         cond_value, ignore.case = T)
+    }
     newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(xml_node, "NAME")),
                parent = getNodeSet(xml_query, "//SELECT")[1])
-    # TODO: doplnit aliasy stlpcov v podmienke (where cast);
   } else {
     print("error2003")
   }
@@ -177,9 +193,8 @@ process_expression <- function(xml_query, xml_node, from_name) {
       expr_level <- length(exprs) + 1
       expr_value <- xml_attr(trans, "EXPRESSION")
       #column name replacement in expression value
-      #prechadzat v cykle tymi finds() a pre kazdu replacenut vo value
       for (fi in 1:length(finds)) {
-        expr_value <- gsub(paste0("([^a-zA-Z0-9])(", finds[fi], ")([^a-zA-Z0-9])"), 
+        expr_value <- gsub(paste0("([^a-zA-Z0-9]*)(", finds[fi], ")([^a-zA-Z0-9]*)"), 
                            paste0("\\1",repls[fi],"\\3"), expr_value, ignore.case = T)
       }
       newXMLNode("EXPRESSION", attrs = c(value = expr_value, level = expr_level, object = xml_attr(xml_node, "NAME")),
