@@ -134,6 +134,21 @@ process_expression <- function(xml_query, xml_node, from_name) {
   # check for adding columns
   # get all TRANSFORMFIELD tags, 
   transformfields <- xml_find_all(xml_node, ".//TRANSFORMFIELD")
+  #keep this for later in the code - column name replacement in expression value
+  finds <- c()   #ones I am looking for to replace
+  repls <- c()   #replacements
+  for (tf in transformfields) {
+    curr_f <- xml_attr(tf, "NAME")
+    curr_r <- NULL
+    tryCatch({
+      curr_r <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//SELECT/COLUMN[@alias='", curr_f, "']"))[[1]])['name'])
+      finds <- append(finds, curr_f)
+      repls <- append(repls, curr_r)
+    }, error = function(err) {
+      # error handler picks up where error was generated
+      print(paste("ERROR 7001 (process_expression, column name in expression replacement):  ",err))
+    })
+  }
   # check NAME attr
   for (trans in transformfields) {
     name <- xml_attr(trans, "NAME")
@@ -156,13 +171,18 @@ process_expression <- function(xml_query, xml_node, from_name) {
     # add EXPRESSION to column      
     #if @expression is the same as @name, dont put in the expression, 
     expr_val <- xml_attr(trans, "EXPRESSION")
-    print(expr_val)
     if (!is.na(expr_val) && expr_val != name) {
       #get all number of expressions on that column + 1 for new level
       exprs <- getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name,"' and @alias='", name, "' and @source='", source_alias, "']/EXPRESSION"))
       expr_level <- length(exprs) + 1
-      newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), 
-                                         level = expr_level, object = xml_attr(xml_node, "NAME")),
+      expr_value <- xml_attr(trans, "EXPRESSION")
+      #column name replacement in expression value
+      #prechadzat v cykle tymi finds() a pre kazdu replacenut vo value
+      for (fi in 1:length(finds)) {
+        expr_value <- gsub(paste0("([^a-zA-Z0-9])(", finds[fi], ")([^a-zA-Z0-9])"), 
+                           paste0("\\1",repls[fi],"\\3"), expr_value, ignore.case = T)
+      }
+      newXMLNode("EXPRESSION", attrs = c(value = expr_value, level = expr_level, object = xml_attr(xml_node, "NAME")),
                  parent = getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name,"' and @alias='", name, "' and @source='", source_alias, "']"))[1])
     }
   }
