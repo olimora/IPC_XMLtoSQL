@@ -149,10 +149,9 @@ process_filter <- function(xml_query, xml_node, from_name) {
 }
 
 process_expression <- function(xml_query, xml_node, from_name) {
-  # check for adding columns
-  # get all TRANSFORMFIELD tags, 
+  ## get all TRANSFORMFIELD tags, 
   transformfields <- xml_find_all(xml_node, ".//TRANSFORMFIELD")
-  #keep this for later in the code - column name replacement in expression value
+  ## find pairs for - replace column name in expression value for column name from source
   finds <- c()   #ones I am looking for to replace
   repls <- c()   #replacements
   for (tf in transformfields) {
@@ -167,44 +166,47 @@ process_expression <- function(xml_query, xml_node, from_name) {
       print(paste0("EXPECTED ERROR 7001 (process_expression, column name in expression replacement for '",curr_f,"'):  ",err))
     })
   }
-  # check NAME attr
-  for (trans in transformfields) {
-    name <- xml_attr(trans, "NAME")
+  
+  ## for each transformfield
+    for (trans in transformfields) {
+    #source alias from previous object
     source_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", from_name, "']"))[[1]])['alias'])
     
-    # ak taky nie je v COLUMN -- v mojom xml,
+    ## check NAME attr; 
+    ## if there is not such column in xml_query, then add column  - expression is added later in this func
+    ## if there is, add only expression 
+    name <- xml_attr(trans, "NAME")
     if (length(getNodeSet(xml_query, paste0("//COLUMN[@alias='", name, "']"))) == 0) {
-      # tak tam taky column pridam s expression z EXPRESSION attr
-      # unique connectors back to the source 
-      ##TODO: neskor - nech sa zastavi na nejakom rozdeleni/spoji ako join/union, a nech ten je ten zdroj, alebo sa pozret z ktorej z joinovanych tabuliek ide
       newXMLNode("COLUMN", attrs = c(name = name, alias = name, source = source_alias, 
                                      value = paste0(source_alias, ".", name)), 
                  parent = getNodeSet(xml_query, "//SELECT")[1])
-    } else { # ak taky column uz je v mojom xml
-      #nepridavam novy
-    }
+    } 
     
-    # add EXPRESSION to column      
-    #if @expression is the same as @name, dont put in the expression, 
-    expr_val <- xml_attr(trans, "EXPRESSION")
-    if (!is.na(expr_val) && expr_val != name) {
-      #get all number of expressions on that column + 1 for new level
-      exprs <- getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name,"' and @alias='", name, "' and @source='", source_alias, "']/EXPRESSION"))
-      expr_level <- length(exprs) + 1
-      expr_value <- xml_attr(trans, "EXPRESSION")
-      #column name replacement in expression value
+    ## add EXPRESSION to column      
+    expr_value <- xml_attr(trans, "EXPRESSION")
+    if (!is.na(expr_value) && expr_value != name) { #if @expression is the same as @name, dont put in the expression, 
+      ## get number of all expressions on that column + 1 for new level
+      expr_level <- 1 + length(getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name,"' and @alias='", name, "' and @source='", source_alias, "']/EXPRESSION")))
+      
+      ## column name replacement in expression value
       for (fi in 1:length(finds)) {
         expr_value <- gsub(paste0("([^a-zA-Z0-9]*)(", finds[fi], ")([^a-zA-Z0-9]*)"), 
                            paste0("\\1",repls[fi],"\\3"), expr_value, ignore.case = T)
       }
-      newXMLNode("EXPRESSION", attrs = c(value = expr_value, level = expr_level, object = xml_attr(xml_node, "NAME")),
-                 parent = getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name,"' and @alias='", name, "' and @source='", source_alias, "']"))[1])
-      #change attribute @value at column
+      
+      ## parent node - column to add expression to
       column_node <- getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name, "' and @alias='", name, "' and @source='", source_alias, "']"))[[1]]
+      
+      ## add EXPRESSION node to xml_query
+      newXMLNode("EXPRESSION", attrs = c(value = expr_value, level = expr_level, object = xml_attr(xml_node, "NAME")),
+                 parent = column_node)
+      
+      ## cocoon the expresion on existing column value
       old_value <- xmlAttrs(column_node)['value']
       new_value <- gsub(paste0("([^a-zA-Z0-9]*)(", name, ")([^a-zA-Z0-9]*)"),
                         paste0("\\1",old_value,"\\3"), expr_value, ignore.case = T) #pattern=name, repl=old_value, x=expr_value
       addAttributes(column_node, value = new_value)
+      
       #TODO: tu pre kazdy column v expr pozert value v xml_query a nahradit ho - bude treba v expr ako je za lookupom
       # - pre kazdy column v tomto objekte loop? - iny byt nemoze a inak ich z expr nemam ako vytiahnut - rovnako ako hore, ale nahradzujem z @value
       #TODO: mysli na vhniezdovanie expressions
