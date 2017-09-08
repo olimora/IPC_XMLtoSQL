@@ -52,6 +52,8 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   xmlChildren(slct) <- c(xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]))[c(order(factor(names(getNodeSet(xml_query, "//SELECT")[[1]]), levels = c("COLUMN","TABLE","CONDITION","INCLUDED_OBJECT"))))] 
   xml_query <- newXMLDoc(node = slct) 
   
+  #TODO: vymazat COLUMNs ktore nejdu nikam do ziadneho objektu? alebo raz na konci pred target? budem ich niekedy potrebovat?
+  
   # check outgoing connectors - where to go
   # if only one, can go
   # if the target object has only this unique connector, can go
@@ -89,9 +91,9 @@ process_source_table <- function(xml_query, xml_node) {
   # add COLUMN nodes inside
   columns <- xml_find_all(xml_node, ".//SOURCEFIELD") 
   for (col in columns) {
-    newXMLNode("COLUMN", attrs = c(name = xml_attr(col, "NAME"), 
-                                   alias = xml_attr(col, "NAME"),
-                                   source = curr_source),
+    at_name <- xml_attr(col, "NAME")
+    newXMLNode("COLUMN", attrs = c(name = at_name, alias = at_name, source = curr_source,
+                                   value = paste0(curr_source, ".", at_name)),
                parent = select_node)
   }
 
@@ -175,10 +177,8 @@ process_expression <- function(xml_query, xml_node, from_name) {
       # tak tam taky column pridam s expression z EXPRESSION attr
       # unique connectors back to the source 
       ##TODO: neskor - nech sa zastavi na nejakom rozdeleni/spoji ako join/union, a nech ten je ten zdroj, alebo sa pozret z ktorej z joinovanych tabuliek ide
-      # TODO: toto trace back uz netreba, staci pozret source alias z prveho predchadzajuceho
-      #source_alias <- trace_source(xml_attr(xml_node, "NAME"))
-      newXMLNode("COLUMN", attrs = c(name = name, alias = name,
-                                     source = source_alias), 
+      newXMLNode("COLUMN", attrs = c(name = name, alias = name, source = source_alias, 
+                                     value = paste0(source_alias, ".", name)), 
                  parent = getNodeSet(xml_query, "//SELECT")[1])
     } else { # ak taky column uz je v mojom xml
       #nepridavam novy
@@ -199,6 +199,16 @@ process_expression <- function(xml_query, xml_node, from_name) {
       }
       newXMLNode("EXPRESSION", attrs = c(value = expr_value, level = expr_level, object = xml_attr(xml_node, "NAME")),
                  parent = getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name,"' and @alias='", name, "' and @source='", source_alias, "']"))[1])
+      #change attribute @value at column
+      column_node <- getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name, "' and @alias='", name, "' and @source='", source_alias, "']"))[[1]]
+      old_value <- xmlAttrs(column_node)['value']
+      new_value <- gsub(paste0("([^a-zA-Z0-9]*)(", name, ")([^a-zA-Z0-9]*)"),
+                        paste0("\\1",old_value,"\\3"), expr_value, ignore.case = T) #pattern=name, repl=old_value, x=expr_value
+      addAttributes(column_node, value = new_value)
+      #TODO: tu pre kazdy column v expr pozert value v xml_query a nahradit ho - bude treba v expr ako je za lookupom
+      # - pre kazdy column v tomto objekte loop? - iny byt nemoze a inak ich z expr nemam ako vytiahnut - rovnako ako hore, ale nahradzujem z @value
+      #TODO: mysli na vhniezdovanie expressions
+      #TODO: refactor this function, so it has less code since it makes some of it 2times, make it more fluent and readable, less getNodeSet - when it is in right order
     }
   }
   
@@ -221,19 +231,20 @@ update_column_aliases <- function(xml_query, from_name, to_name) {
   return(xml_query)
 }
 
-## utility func to trace back alias of source table for column names that are specified in later objects like expressions
-trace_source <- function(object_name) {
-  ret <- NULL
-  from_object <- subset(connectors_unique_df, to_instance == object_name)$from_instance
-  if (length(from_object) > 1) { #problem - vetvenie, dva do jednoho ako pri union/join, STOP! alebo trace len do jednej vetvy
-    print("error8001")
-  } else if (length(from_object) == 0) { #nie je uz ziadny predchadzajuci objekt, return alias
-    ret <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", object_name, "']"))[[1]])['alias']) #vrati vektor attributov, druhy je alias
-  } else if (length(from_object) == 1) { #jeden predchadzajuci, call itself
-    ret <- trace_source(from_object)
-  } else { #necakane
-    print("error8002")
-  }
-  #print(ret)
-  return(ret)
-}
+## not used. 
+# ## utility func to trace back alias of source table for column names that are specified in later objects like expressions
+# trace_source <- function(object_name) {
+#   ret <- NULL
+#   from_object <- subset(connectors_unique_df, to_instance == object_name)$from_instance
+#   if (length(from_object) > 1) { #problem - vetvenie, dva do jednoho ako pri union/join, STOP! alebo trace len do jednej vetvy
+#     print("error8001")
+#   } else if (length(from_object) == 0) { #nie je uz ziadny predchadzajuci objekt, return alias
+#     ret <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", object_name, "']"))[[1]])['alias']) #vrati vektor attributov, druhy je alias
+#   } else if (length(from_object) == 1) { #jeden predchadzajuci, call itself
+#     ret <- trace_source(from_object)
+#   } else { #necakane
+#     print("error8002")
+#   }
+#   #print(ret)
+#   return(ret)
+# }
