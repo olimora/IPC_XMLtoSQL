@@ -52,8 +52,8 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   xmlChildren(slct) <- c(xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]))[c(order(factor(names(getNodeSet(xml_query, "//SELECT")[[1]]), levels = c("COLUMN","TABLE","CONDITION","INCLUDED_OBJECT"))))] 
   xml_query <- newXMLDoc(node = slct) 
   
-  #TODO: vymazat COLUMNs ktore nejdu nikam do ziadneho objektu? alebo raz na konci pred target? budem ich niekedy potrebovat?
-  
+  #TODO: delete columns that dont continue to any object / or / delete them only before TARGET object
+
   # check outgoing connectors - where to go
   # if only one, can go
   # if the target object has only this unique connector, can go
@@ -210,7 +210,6 @@ process_expression <- function(xml_query, xml_node, from_name) {
       #TODO: tu pre kazdy column v expr pozert value v xml_query a nahradit ho - bude treba v expr ako je za lookupom
       # - pre kazdy column v tomto objekte loop? - iny byt nemoze a inak ich z expr nemam ako vytiahnut - rovnako ako hore, ale nahradzujem z @value
       #TODO: mysli na vhniezdovanie expressions
-      #TODO: refactor this function, so it has less code since it makes some of it 2times, make it more fluent and readable, less getNodeSet - when it is in right order
     }
   }
   
