@@ -28,24 +28,10 @@ build_select_part <- function(xml_query) {
     exprs <- getNodeSet(xml_query, paste0("//COLUMN[@name='", attrs['name'], "' and @alias='", attrs['alias'], "' and @source='", attrs['source'], "']",
                                           "/EXPRESSION"))
     if (!is.null(exprs[1][[1]])) {
-      for (j in 1:length(exprs)) { #TODO: put exprs in there, in comments. dont mess with cocooing and regex replace with ORACLE syntax now
-        # add expressions by lvl in loop. cocoon around it
+      for (j in 1:length(exprs)) { 
+        # TODO:? add expressions by lvl in loop. cocoon around it, replace to ORACLE syntax
         # if lvl == 1 / j == 1, add source.
         added_row <- paste0(added_row, " --lvl=", unname(xmlAttrs(exprs[j][[1]])['level']), ": ", unname(xmlAttrs(exprs[j][[1]])['value']), "; ")
-        #pattern - column name
-        #replacement - lvl1 - source.column_name pre kazdy column v expr
-        #            - lvl2 - source. pre kazdy column, ktory ho este nema
-        #                   - product of previous itteration
-        # replacement <- ''
-        # if (j == 1) { #lvl1 TODO: all other columns with source.
-        #   replacement <- paste0(attrs['source'], ".", attrs['name'])
-        # } else { #others
-        #   replacement <- added_row
-        # }
-        # expr_value <- unname(xmlAttrs(exprs[j][[1]])['value'])
-        # added_row <- sub()
-        
-        ##changed - add attr @value to column, there would be src.name and later cocooned by expressions
       }
     }
     
