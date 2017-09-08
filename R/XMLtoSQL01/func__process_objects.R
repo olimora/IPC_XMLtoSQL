@@ -157,14 +157,22 @@ process_expression <- function(xml_query, xml_node, from_name) {
   for (tf in transformfields) {
     curr_f <- xml_attr(tf, "NAME")
     curr_r <- NULL
-    tryCatch({
-      curr_r <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//SELECT/COLUMN[@alias='", curr_f, "']"))[[1]])['name'])
+    nodesett <- getNodeSet(xml_query, paste0("//SELECT/COLUMN[@alias='", curr_f, "']"))
+    if (length(nodesett) == 1) {
+      curr_r <- unname(xmlAttrs(nodesett[[1]])['name'])
       finds <- append(finds, curr_f)
       repls <- append(repls, curr_r)
-    }, error = function(err) {
-      # error handler picks up where error was generated
-      print(paste0("EXPECTED ERROR 7001 (process_expression, column name in expression replacement for '",curr_f,"'):  ",err))
-    })
+    } else {
+      problem <- ""
+      if (length(nodesett) == 0) {
+        problem <- "no column with that name found"
+      } else if (length(nodesett) > 1) {
+        problem <- "more than 1 column with that name found"
+      } else {
+        problem <- "unknown"
+      }
+      print(paste0("EXPECTED ERROR 7001 (process_expression, column name in expression replacement for '",curr_f,"') problem: ", problem))
+    }
   }
   
   ## for each transformfield
