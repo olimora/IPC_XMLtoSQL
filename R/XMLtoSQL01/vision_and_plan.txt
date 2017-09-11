@@ -1,0 +1,26 @@
++ novy program, ktory: 
+	- prejde vetvy podla pravidiel ako sa ma vykonavat realny program, 
+	- vypise poradie vetiev ako boli spracovane
+	- do tohto sa potom prida spracovanie objektov ...
+
++ najst zaciatky vetiev - objekty,	- do ktorych nejdu ziadne konektory
+									- objekty do ktorych ide viac ako jeden konektor
+									- rozvetvenie - obj do ktoreho idu konektory z objektu, ktory ma konektory do viacerych
+									/- do ktoreho idu konektory z konca vetvy
+	- dat do zoznamu vetiev	
+	- vetva: zaciatocny objekt: name; predpoklady: zoznam objektov z ktorych donho idu konektory
+	- ? konce vetiev? - objekt, - z ktoreho nejdu ziadne konektory (target)
+								- z ktoreho idu konektory do viacerych objektov
+								- z ktorych idu konektory do objektu, do ktoreho idu konektory z viacerych objektov
+								/- z ktoreho idu konektory do zaciatku nejakej vetvy
+								
++ lookup - vsetko vetva, kazda lookup obj,
++ implement lookup   
++ implement joiny - nejoinovat dva subselecty ale 
+	- bud pridat do existujuceho selectu columny a FROM element z druheho selectu z druhej vetvy 
+	- alebo vytvorit novy select element a dat tam vsetky elementy z oboch selectov z oboch vetiev
++ implement union
++ implement sequence generator
++ problem pri joinovani, unionoch ... merge select elementov v xml_query a rozlisovanie sourcov (src1.)
+
+//lookup - ?special case - lookup nie je ako vetva - aj viac lookup tabuliek (viac vetiev) riesenych naraz
