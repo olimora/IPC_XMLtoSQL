@@ -5,23 +5,33 @@
 # params: 
 #   xml_query - XML doc with query repres.
 #
+##################
 
 xml_to_sql <- function(xml_query) {
-  select_part <- "SELECT"
-  from_part <- "FROM"
-  where_part <- "WHERE 1=1"
+  select_part <- build_select_part(xml_query)
+  from_part <- build_from_part(xml_query)
+  where_part <- build_where_part(xml_query)
   
+  whole_query <- paste(select_part, from_part, where_part, sep = "\n")
+  return(whole_query)
+}
+
+build_select_part <- function(xml_query) {
+  select_part <- "SELECT"
   # columns to select
   columns <- getNodeSet(xml_query, "//COLUMN")
   for (i in 1:length(columns)) {
     attrs <- xmlAttrs(columns[i][[1]])
     added_row <- paste0(attrs['source'], ".", attrs['name'], " AS ", attrs['alias'])
-    # ak ma EXPRESSION, tak pridat do komentu 
+    #added_row <- ""
+    # build coulmn with expressions applied
     exprs <- getNodeSet(xml_query, paste0("//COLUMN[@name='", attrs['name'], "' and @alias='", attrs['alias'], "' and @source='", attrs['source'], "']",
                                           "/EXPRESSION"))
     if (!is.null(exprs[1][[1]])) {
-      for (j in 1:length(exprs)) {
-        added_row <- paste0(added_row, " --", unname(xmlAttrs(exprs[j][[1]])['value']))
+      for (j in 1:length(exprs)) { 
+        # TODO:? add expressions by lvl in loop. cocoon around it, replace to ORACLE syntax
+        # if lvl == 1 / j == 1, add source.
+        added_row <- paste0(added_row, " --lvl=", unname(xmlAttrs(exprs[j][[1]])['level']), ": ", unname(xmlAttrs(exprs[j][[1]])['value']), "; ")
       }
     }
     
@@ -30,10 +40,12 @@ xml_to_sql <- function(xml_query) {
     } else { #ostatne
       select_part <- paste(select_part, "\n", paste0(", ", added_row))
     }
-    
   }
-  #print(select_part)
-  
+  return(select_part)
+}
+
+build_from_part <- function(xml_query) {
+  from_part <- "FROM"
   # tables and joins
   tables <- getNodeSet(xml_query, "//TABLE")
   for (i in 1:length(tables)) {
@@ -46,18 +58,18 @@ xml_to_sql <- function(xml_query) {
       from_part <- paste(from_part, paste0("JOIN ", added_row, "\n")) #TODO: "on ... and ..." 
     }
   }
-  #print(from_part)
-  
+  return(from_part)
+}
+
+build_where_part <- function(xml_query) {
+  where_part <- "WHERE 1=1"
   # conditions
-  # TODO: aliasy v podmienkach. da sa? -> podla koenktorov, ze odkial idu?, aliasy nazvu objektu v mappingu?
   conditions <- getNodeSet(xml_query, "//CONDITION")
   for (i in 1:length(conditions)) {
     attrs <- xmlAttrs(conditions[i][[1]])
-    where_part <- paste(where_part, "\n", paste0(" AND ", attrs[1]))
+    where_part <- paste(where_part, "\n", paste0(" AND (", attrs[1]), ")")
   }
-  
-  whole_query <- paste(select_part, from_part, where_part, sep = "\n")
-  return(whole_query)
+  return(where_part)
 }
 
 get_scheme_for_table <- function(table_name) {

@@ -52,6 +52,8 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   xmlChildren(slct) <- c(xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]))[c(order(factor(names(getNodeSet(xml_query, "//SELECT")[[1]]), levels = c("COLUMN","TABLE","CONDITION","INCLUDED_OBJECT"))))] 
   xml_query <- newXMLDoc(node = slct) 
   
+  #TODO: delete columns that dont continue to any object / or / delete them only before TARGET object
+
   # check outgoing connectors - where to go
   # if only one, can go
   # if the target object has only this unique connector, can go
@@ -89,9 +91,9 @@ process_source_table <- function(xml_query, xml_node) {
   # add COLUMN nodes inside
   columns <- xml_find_all(xml_node, ".//SOURCEFIELD") 
   for (col in columns) {
-    newXMLNode("COLUMN", attrs = c(name = xml_attr(col, "NAME"), 
-                                   alias = xml_attr(col, "NAME"),
-                                   source = curr_source),
+    at_name <- xml_attr(col, "NAME")
+    newXMLNode("COLUMN", attrs = c(name = at_name, alias = at_name, source = curr_source,
+                                   value = paste0(curr_source, ".", at_name)),
                parent = select_node)
   }
 
@@ -104,9 +106,17 @@ process_source_qualifier <- function(xml_query, xml_node, from_name) {
   condition_node <- xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Source Filter']") 
   if (length(condition_node) == 1) {
     cond_value <- xml_attr(condition_node, "VALUE")
+    # add scheme to column names (replace with scheme before the column name)
+    transformfields <- xml_find_all(xml_node, ".//TRANSFORMFIELD")
+    for (tf in transformfields) {
+      find <- xml_attr(tf, "NAME")
+      src_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//SELECT/COLUMN[@alias='", find, "']"))[[1]])['source'])
+      cond_value <- gsub(paste0("([^a-zA-Z0-9]*)(",find,")([^a-zA-Z0-9]*)"), #pattern
+                         paste0("\\1",src_alias,".",find,"\\3"), #replacement 
+                         cond_value, ignore.case = T)
+    }
     newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(xml_node, "NAME")),
                parent = getNodeSet(xml_query, "//SELECT")[1])
-    # TODO: doplnit aliasy stlpcov v podmienke (where cast);
   } else {
     print("error2002")
   }
@@ -119,9 +129,17 @@ process_filter <- function(xml_query, xml_node, from_name) {
   condition_node <- xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Filter Condition']") 
   if (length(condition_node) == 1) {
     cond_value <- xml_attr(condition_node, "VALUE")
+    # add scheme to column names (replace with scheme before the column name)
+    transformfields <- xml_find_all(xml_node, ".//TRANSFORMFIELD")
+    for (tf in transformfields) {
+      find <- xml_attr(tf, "NAME")
+      src_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//SELECT/COLUMN[@alias='", find, "']"))[[1]])['source'])
+      cond_value <- gsub(paste0("([^a-zA-Z0-9]*)(",find,")([^a-zA-Z0-9]*)"), #pattern
+                         paste0("\\1",src_alias,".",find,"\\3"), #replacement 
+                         cond_value, ignore.case = T)
+    }
     newXMLNode("CONDITION", attrs = c(value = cond_value, object = xml_attr(xml_node, "NAME")),
                parent = getNodeSet(xml_query, "//SELECT")[1])
-    # TODO: doplnit aliasy stlpcov v podmienke (where cast);
   } else {
     print("error2003")
   }
@@ -131,27 +149,75 @@ process_filter <- function(xml_query, xml_node, from_name) {
 }
 
 process_expression <- function(xml_query, xml_node, from_name) {
-  # check for adding columns
-  # get all TRANSFORMFIELD tags, 
+  ## get all TRANSFORMFIELD tags, 
   transformfields <- xml_find_all(xml_node, ".//TRANSFORMFIELD")
-  # check NAME attr
-  for (trans in transformfields) {
+  ## find pairs for - replace column name in expression value for column name from source
+  finds <- c()   #ones I am looking for to replace
+  repls <- c()   #replacements
+  for (tf in transformfields) {
+    curr_f <- xml_attr(tf, "NAME")
+    curr_r <- NULL
+    nodesett <- getNodeSet(xml_query, paste0("//SELECT/COLUMN[@alias='", curr_f, "']"))
+    if (length(nodesett) == 1) {
+      curr_r <- unname(xmlAttrs(nodesett[[1]])['name'])
+      finds <- append(finds, curr_f)
+      repls <- append(repls, curr_r)
+    } else {
+      problem <- ""
+      if (length(nodesett) == 0) {
+        problem <- "no column with that name found"
+      } else if (length(nodesett) > 1) {
+        problem <- "more than 1 column with that name found"
+      } else {
+        problem <- "unknown"
+      }
+      print(paste0("EXPECTED ERROR 7001 (process_expression, column name in expression replacement for '",curr_f,"') problem: ", problem))
+    }
+  }
+  
+  ## for each transformfield
+    for (trans in transformfields) {
+    #source alias from previous object
+    source_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", from_name, "']"))[[1]])['alias'])
+    
+    ## check NAME attr; 
+    ## if there is not such column in xml_query, then add column  - expression is added later in this func
+    ## if there is, add only expression 
     name <- xml_attr(trans, "NAME")
-    # ak taky nie je v COLUMN -- v mojom xml,
     if (length(getNodeSet(xml_query, paste0("//COLUMN[@alias='", name, "']"))) == 0) {
-      # tak tam taky column pridam s expression z EXPRESSION attr
-      # unique connectors back to the source 
-      ##TODO: neskor - nech sa zastavi na nejakom rozdeleni/spoji ako join/union, a nech ten je ten zdroj, alebo sa pozret z ktorej z joinovanych tabuliek ide
-      # TODO: toto trace back uz netreba, staci pozret source alias z prveho predchadzajuceho
-      #source_alias <- trace_source(xml_attr(xml_node, "NAME"))
-      source_alias <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", from_name, "']"))[[1]])['alias'])
-      newXMLNode("COLUMN", attrs = c(name = name, alias = name,
-                                     source = source_alias), 
-                 parent = getNodeSet(xml_query, "//SELECT")[1],
-                 .children = list(newXMLNode("EXPRESSION", attrs = c(value = xml_attr(trans, "EXPRESSION"), 
-                                                                     level = 1, object = xml_attr(xml_node, "NAME")))))
-      # prirobit vlozene tagy - expression - tu nad tymto riadko je to uz
+      newXMLNode("COLUMN", attrs = c(name = name, alias = name, source = source_alias, 
+                                     value = paste0(source_alias, ".", name)), 
+                 parent = getNodeSet(xml_query, "//SELECT")[1])
+    } 
+    
+    ## add EXPRESSION to column      
+    expr_value <- xml_attr(trans, "EXPRESSION")
+    if (!is.na(expr_value) && expr_value != name) { #if @expression is the same as @name, dont put in the expression, 
+      ## get number of all expressions on that column + 1 for new level
+      expr_level <- 1 + length(getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name,"' and @alias='", name, "' and @source='", source_alias, "']/EXPRESSION")))
       
+      ## column name replacement in expression value
+      for (fi in 1:length(finds)) {
+        expr_value <- gsub(paste0("([^a-zA-Z0-9]*)(", finds[fi], ")([^a-zA-Z0-9]*)"), 
+                           paste0("\\1",repls[fi],"\\3"), expr_value, ignore.case = T)
+      }
+      
+      ## parent node - column to add expression to
+      column_node <- getNodeSet(xml_query, paste0("//SELECT/COLUMN[@name='", name, "' and @alias='", name, "' and @source='", source_alias, "']"))[[1]]
+      
+      ## add EXPRESSION node to xml_query
+      newXMLNode("EXPRESSION", attrs = c(value = expr_value, level = expr_level, object = xml_attr(xml_node, "NAME")),
+                 parent = column_node)
+      
+      ## cocoon the expresion on existing column value
+      old_value <- xmlAttrs(column_node)['value']
+      new_value <- gsub(paste0("([^a-zA-Z0-9]*)(", name, ")([^a-zA-Z0-9]*)"),
+                        paste0("\\1",old_value,"\\3"), expr_value, ignore.case = T) #pattern=name, repl=old_value, x=expr_value
+      addAttributes(column_node, value = new_value)
+      
+      #TODO: tu pre kazdy column v expr pozert value v xml_query a nahradit ho - bude treba v expr ako je za lookupom
+      # - pre kazdy column v tomto objekte loop? - iny byt nemoze a inak ich z expr nemam ako vytiahnut - rovnako ako hore, ale nahradzujem z @value
+      #TODO: mysli na vhniezdovanie expressions
     }
   }
   
@@ -174,19 +240,20 @@ update_column_aliases <- function(xml_query, from_name, to_name) {
   return(xml_query)
 }
 
-## utility func to trace back alias of source table for column names that are specified in later objects like expressions
-trace_source <- function(object_name) {
-  ret <- NULL
-  from_object <- subset(connectors_unique_df, to_instance == object_name)$from_instance
-  if (length(from_object) > 1) { #problem - vetvenie, dva do jednoho ako pri union/join, STOP! alebo trace len do jednej vetvy
-    print("error8001")
-  } else if (length(from_object) == 0) { #nie je uz ziadny predchadzajuci objekt, return alias
-    ret <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", object_name, "']"))[[1]])['alias']) #vrati vektor attributov, druhy je alias
-  } else if (length(from_object) == 1) { #jeden predchadzajuci, call itself
-    ret <- trace_source(from_object)
-  } else { #necakane
-    print("error8002")
-  }
-  #print(ret)
-  return(ret)
-}
+## not used. 
+# ## utility func to trace back alias of source table for column names that are specified in later objects like expressions
+# trace_source <- function(object_name) {
+#   ret <- NULL
+#   from_object <- subset(connectors_unique_df, to_instance == object_name)$from_instance
+#   if (length(from_object) > 1) { #problem - vetvenie, dva do jednoho ako pri union/join, STOP! alebo trace len do jednej vetvy
+#     print("error8001")
+#   } else if (length(from_object) == 0) { #nie je uz ziadny predchadzajuci objekt, return alias
+#     ret <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", object_name, "']"))[[1]])['alias']) #vrati vektor attributov, druhy je alias
+#   } else if (length(from_object) == 1) { #jeden predchadzajuci, call itself
+#     ret <- trace_source(from_object)
+#   } else { #necakane
+#     print("error8002")
+#   }
+#   #print(ret)
+#   return(ret)
+# }

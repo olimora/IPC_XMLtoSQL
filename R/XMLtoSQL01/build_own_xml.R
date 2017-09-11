@@ -59,6 +59,8 @@ for (src in sources) {
 sql_query <- xml_to_sql(xml_query)
 
 ## output at end
+writeLines("")
+writeLines("output:")
 print(xml_query)
 writeLines(sql_query)
 
