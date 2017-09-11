@@ -4,16 +4,16 @@
 	- do tohto sa potom prida spracovanie objektov ...
 
 + najst zaciatky vetiev - objekty,	- do ktorych nejdu ziadne konektory
-									- objekty do ktorych ide viac ako jeden konektor
+									- do ktorych ide viac ako jeden konektor
 									- rozvetvenie - obj do ktoreho idu konektory z objektu, ktory ma konektory do viacerych
 									/- do ktoreho idu konektory z konca vetvy
-	- dat do zoznamu vetiev	
-	- vetva: zaciatocny objekt: name; predpoklady: zoznam objektov z ktorych donho idu konektory
 	- ? konce vetiev? - objekt, - z ktoreho nejdu ziadne konektory (target)
 								- z ktoreho idu konektory do viacerych objektov
 								- z ktorych idu konektory do objektu, do ktoreho idu konektory z viacerych objektov
 								/- z ktoreho idu konektory do zaciatku nejakej vetvy
-								
+	- vetva: zaciatocny objekt: name; predpoklady: zoznam objektov z ktorych donho idu konektory
+	- dat do zoznamu vetiev	
+				
 + lookup - vsetko vetva, kazda lookup obj,
 + implement lookup   
 + implement joiny - nejoinovat dva subselecty ale 
