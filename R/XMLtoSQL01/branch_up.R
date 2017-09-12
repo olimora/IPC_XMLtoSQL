@@ -4,7 +4,7 @@ library("XML")
 source("./func__branching_utils.R")
 
 ## read xml
-xml_input <- read_xml("example.xml")
+xml_input <- read_xml("mp_PART_L1_r_party_party_ISP.xml")
 
 ## get connectors
 connectors <- get_connectors_dfs(xml_input)
