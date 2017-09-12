@@ -65,3 +65,39 @@ get_end_of_branch <- function(connectors, beg, endings) {
     get_end_of_branch(connectors, next_obj, endings)
   }
 }
+
+## returns queue = branches not done yet
+get_queue <- function(branches) {
+  return(subset(branches, done == F))
+}
+
+## returns size of queue
+get_queue_size <- function(branches) {
+  return(nrow(get_queue(branches)))
+}
+
+## get any branch with done preddispositions
+get_branch_to_follow <- function(branches, connectors) {
+  not_done <- get_queue(branches) # get all branches not done yet == queue
+  if (nrow(not_done) == 0) { # if there is no branch not done yet = all branches are done. good
+    message("Following branches finished")
+    return(-1) 
+  }
+  for (i in 1:nrow(not_done)) { # for branches not done yet
+    # get all preddispositions = sources of connectors to beginning of the branch
+    preddisp <- subset(connectors$unique, to_instance == not_done$beg[i])$from_instance 
+    value <- T # changes to FALSE if some preddisposition is not done
+    if (length(preddisp) == 0) { # has no preddispositions, can go
+      return(not_done[i,])
+    } else { # for every preddispositon. Use AND on value and status of branch that ands with the preddisposition
+      for (j in 1:length(preddisp)) {
+        value <- value & subset(branches, end == preddisp[j])$done
+      }
+    }
+    if (value == T) { #has all preddispositions met, else it continues to next iteration for i loop
+      return(not_done[i,])
+    } 
+  }
+  message("Branch to follow not availible.")
+  return(-2)
+}

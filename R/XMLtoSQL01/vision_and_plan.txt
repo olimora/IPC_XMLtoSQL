@@ -11,8 +11,12 @@
 								- z ktoreho idu konektory do viacerych objektov
 								- z ktorych idu konektory do objektu, do ktoreho idu konektory z viacerych objektov
 								/- z ktoreho idu konektory do zaciatku nejakej vetvy
-	- vetva: zaciatocny objekt: name; predpoklady: zoznam objektov z ktorych donho idu konektory
+	- vetva: zaciatocny objekt: name; predpoklady: zoznam objektov z ktorych donho idu konektory - to vzdy pozret podla connectors, a ci su vetvy done
+																				- conectors ktore idu do zaciatku vetvy su preddispozicie
+																				- vidim ze odkial idu - pozret v BRANCHES podla END a ci su DONE == T
 	- dat do zoznamu vetiev	
+		- zoznam len tabulka BRANCHES where DONE == F
+	- vytahovat z Q nespravene a s hotovymi preddisp.
 				
 + lookup - vsetko vetva, kazda lookup obj,
 + implement lookup   

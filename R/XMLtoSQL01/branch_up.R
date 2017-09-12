@@ -8,21 +8,22 @@ xml_input <- read_xml("example.xml")
 
 ## get connectors
 connectors <- get_connectors_dfs(xml_input)
-## beginnings, endings
+
+## create branches
 beginnings <- get_branches_beginnings(connectors)
 endings <- get_branches_endings(connectors)
+matching_ends <- sapply(beginnings, function(x) get_end_of_branch(connectors, x, endings))
+branches <- data.frame(beg = beginnings, end = matching_ends, done = rep(F, length(beginnings)),
+                       stringsAsFactors = F)
 
-match_ends <- vector(mode = "character", length = length(beginnings))
-## create branches
-for (i in 1:length(beginnings)) {
-  end <- get_end_of_branch(connectors, beginnings[i], endings)
-  match_ends[i] <- end
+get_queue(branches)
+get_queue_size(branches)
+
+## follow branches
+# loop while queue is not empty
+while (get_queue_size(branches) > 0) {
+  # get any branch with done preddispositions
+  br <- get_branch_to_follow(branches, connectors)
+  branches[br$beg,]$done = T
+  print(paste("branche processed", br$beg, br$end))
 }
-
-branches <- data.frame(beg = beginnings, end = match_ends, preddisp = rep("", length(beginnings)),
-                       stringsAsFactors = F) #predispositions - tam bude proste string s nazvami objektov oddelenymi bodkociarkou
-
-
-
-## find predispositions for branches
-
