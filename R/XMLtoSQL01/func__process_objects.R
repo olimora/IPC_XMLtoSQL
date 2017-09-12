@@ -21,7 +21,7 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   # print(node_type)
   
   # update aliases on columns
-  if (node_tag != "SOURCE") { #another condition needed?
+  if (node_tag != "SOURCE") { #another condition needed? #TODO: after NULL from_name resolved - if condition not needed. do it every time. - resolve no existing incpoming connectors in function
     xml_query <- update_column_aliases(xml_query, from_name, xml_attr(xml_node, "NAME"))
   }
   
@@ -35,6 +35,7 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   } else if (node_type == "Expression") {           # Expression
     xml_query <- process_expression(xml_query, xml_node, from_name)  
   }
+  #TODO: sorter not considered yet
   
   # add INCLUDED_OBJECT node inside
   curr_source <- "NA"
@@ -57,10 +58,10 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   # check outgoing connectors - where to go
   # if only one, can go
   # if the target object has only this unique connector, can go
-  outgoing_connectors <- subset(connectors_unique_df, from_instance == node_name)
-  target_inc_connectors <- subset(connectors_unique_df, to_instance == outgoing_connectors$to_instance)
+  outgoing_connectors <- subset(connectors$unique, from_instance == node_name)
+  target_inc_connectors <- subset(connectors$unique, to_instance == outgoing_connectors$to_instance)
   if (nrow(outgoing_connectors) == 1 && nrow(target_inc_connectors) == 1) { #straight line of succesion
-    target_xpath <- paste0("//*[not(name()='INSTANCE') and @NAME='", outgoing_connectors$to_instance[1], "']")
+    target_xpath <- paste0("//*[not(name()='INSTANCE') and not(name()='SHORTCUT') and @NAME='", outgoing_connectors$to_instance[1], "']")
     target_node <- xml_find_all(xml_input, target_xpath)
     if (length(target_node) != 1) {
       print("error2001")
@@ -226,8 +227,9 @@ process_expression <- function(xml_query, xml_node, from_name) {
 
 ## utility function to update aliases in XML query called at beginning of every process function
 update_column_aliases <- function(xml_query, from_name, to_name) {
+  #TODO: if from_name is NULL, get from connectors all conectors needed. - all incoming
   #get connectors from from_name object - na zmenu aliasu column
-  curr_connectors <- subset(connectors_all_df, from_instance == from_name & to_instance == to_name)
+  curr_connectors <- subset(connectors$all, from_instance == from_name & to_instance == to_name)
   for (i_conn in 1:nrow(curr_connectors)) {
     from_field <- curr_connectors$from_field[i_conn]
     to_field <- curr_connectors$to_field[i_conn]
@@ -244,7 +246,7 @@ update_column_aliases <- function(xml_query, from_name, to_name) {
 # ## utility func to trace back alias of source table for column names that are specified in later objects like expressions
 # trace_source <- function(object_name) {
 #   ret <- NULL
-#   from_object <- subset(connectors_unique_df, to_instance == object_name)$from_instance
+#   from_object <- subset(connectors$unique, to_instance == object_name)$from_instance
 #   if (length(from_object) > 1) { #problem - vetvenie, dva do jednoho ako pri union/join, STOP! alebo trace len do jednej vetvy
 #     print("error8001")
 #   } else if (length(from_object) == 0) { #nie je uz ziadny predchadzajuci objekt, return alias
