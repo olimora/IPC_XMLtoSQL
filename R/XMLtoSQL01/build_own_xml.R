@@ -4,15 +4,6 @@ library("XML")
 source("./func__process_objects.R")
 source("./func__write_sql.R")
 
-# not used yet - to be used when revriting database functions to oracle syntax 
-to_oracle_syntax <- function(input) {
-  input <- gsub("\\$\\$", "$", input)
-  input <- gsub("&lt;", "<", input) 
-  input <- gsub("&gt;", ">", input)
-  return(input)
-}
-
-
 ## global variables ##########
 counters_env <- new.env()
 counters_env$select_no <- 0
