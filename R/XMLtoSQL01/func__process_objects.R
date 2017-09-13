@@ -253,20 +253,33 @@ process_lookup <- function(xml_query, xml_node) {
   # <TABLEATTRIBUTE NAME ="Lookup table name" VALUE ="L1_L_SK_TABLE"/>
   # <TABLEATTRIBUTE NAME ="Lookup Source Filter" VALUE ="L1_L_SK_TABLE.surr_table_id = 1159 AND L1_L_SK_TABLE.extract_id = 3114"/>
   # <TABLEATTRIBUTE NAME ="Lookup condition" VALUE ="src_cd = src_cd_in"/>
-
-  print(xml_query)
   
   counters_env$source_no <- counters_env$source_no+1
   curr_source <- paste0("src", counters_env$source_no)
-  # add LEFT JOIN table 
-  # with ON - replace table name with new source alias
+  
   table_name <- xml_attr(xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Lookup table name']"), "VALUE")
   src_filter <- xml_attr(xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Lookup Source Filter']"), "VALUE")
   condition <- xml_attr(xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Lookup condition']"), "VALUE")
   
+  # src_filter <- 
+  # condition <- 
+  # add TABLE node inside + new source alias
+  newXMLNode("TABLE", attrs = c(name = table_name, alias = curr_source),
+             parent = getNodeSet(xml_query, paste0("//SELECT[@alias='sub", counters_env$select_no, "']"))[1],
+             children = list(
+               newXMLNode("CONDITION", attrs = c(value = src_filter, object = xml_attr(xml_node, "NAME"))), ## value - TODO...
+               newXMLNode("CONDITION", attrs = c(value = condition, object = xml_attr(xml_node, "NAME"))) ## value -
+             ))
+  # + add conditions on JOIN -- ON ... AND 
+  #   + replace tablename for source alias in src_filter
+  #   + add source alias before any column in condition
+  #     + for every TRANSFORMFIELD in xml_node 
+  #         + if it is COLUMN from this table (has no connectors to this object) 
+  #           + add this source alias before column name in codition
+  #           + add new column to xml_query with for_object = this
+  #         + else replace it with @value from COLUMN with @NAME == @alias from xml_query
   
-  #TODO: replace tablename for source alias in src_filter
-  #TODO: add source alias before any column in condition
+  return(xml_query)
 }
 
 ## not used
