@@ -16,15 +16,7 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   node_tag <- xml_name(xml_node)
   node_name <- xml_attr(xml_node, "NAME")
   node_type <- xml_attr(xml_node, "TYPE")
-  # print(node_tag)
-  # print(node_name)
-  # print(node_type)
-  
-  # update aliases on columns
-  if (node_tag != "SOURCE") { #another condition needed? #TODO: after NULL from_name resolved - if condition not needed. do it every time. - resolve no existing incpoming connectors in function
-    xml_query <- update_column_aliases(xml_query, from_name, xml_attr(xml_node, "NAME"))
-  }
-  
+
   # process xml mapping object
   if (node_tag == "SOURCE") {                       # source
     xml_query <- process_source_table(xml_query, xml_node)
@@ -34,10 +26,40 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
     xml_query <- process_filter(xml_query, xml_node, from_name)  
   } else if (node_type == "Expression") {           # Expression
     xml_query <- process_expression(xml_query, xml_node, from_name)  
+  } else if (node_type == "Lookup Procedure") {     # Lookup
+    xml_query <- process_lookup(xml_query, xml_node)
   }
-  #TODO: sorter not considered yet
+  #TODO: sorter object not considered yet
   
-  # add INCLUDED_OBJECT node inside
+  ## update column aliases and for_object attribute for further processing
+  #get all columns in xml_query that for_object == this object
+  all_columns <- getNodeSet(xml_query, paste0("//COLUMN[@for_object='", node_name, "']"))
+  #for every column in xml_query
+  for (col_i in 1:length(all_columns)) {
+    #get outgoing connectors of that column
+    column_alias <- unname(xmlAttrs(all_columns[[col_i]])['alias'])
+    connectors_out <- subset(connectors$all, from_instance == node_name & from_field == column_alias)
+    #if has no connectors out - delete column from xml_query
+    if (nrow(connectors_out) == 0) {
+      removeNodes(all_columns[[col_i]])
+    } else { #if has more than 0 connectors out -
+      for (conn_i in 1:nrow(connectors_out)) {
+        # - first one - update for_object and update alias as is in for_object
+        new_alias <- connectors_out$to_field[conn_i]
+        new_for_object <- connectors_out$to_instance[conn_i]
+        if (conn_i == 1) {
+          addAttributes(all_columns[[col_i]], alias = new_alias, for_object = new_for_object)
+        } else {   # - others - add new column with different for_object and update alias as is in for_object
+          new_column_node <- xmlClone(all_columns[[col_i]])
+          addAttributes(new_column_node, alias = new_alias, for_object = new_for_object)
+          #add that column to xml_query
+          addSibling(all_columns[[col_i]], new_column_node)
+        }
+      }
+    }
+  }
+  
+  ## add INCLUDED_OBJECT node inside
   curr_source <- "NA"
   if (is.null(from_name)) {     #make new
     if (node_tag != "SOURCE") { counters_env$source_no <- counters_env$source_no+1  }
@@ -45,7 +67,7 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   } else {        #find source alias from xml_query - INCLUDED with name == from_name
     curr_source <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", from_name, "']"))[[1]])['alias'])
   }
-  newXMLNode("INCLUDED_OBJECT", attrs = c(name = xml_attr(xml_node, "NAME"), alias = curr_source),
+  newXMLNode("INCLUDED_OBJECT", attrs = c(name = node_name, alias = curr_source),
              parent = getNodeSet(xml_query, "//SELECT")[[1]])
   
   ## sort tags to make XML more readable
@@ -53,8 +75,8 @@ process_general_object <- function(xml_query, xml_node, xml_input, from_name) {
   xmlChildren(slct) <- c(xmlChildren(getNodeSet(xml_query, "//SELECT")[[1]]))[c(order(factor(names(getNodeSet(xml_query, "//SELECT")[[1]]), levels = c("COLUMN","TABLE","CONDITION","INCLUDED_OBJECT"))))] 
   xml_query <- newXMLDoc(node = slct) 
   
-  #TODO: delete columns that dont continue to any object / or / delete them only before TARGET object
-
+  print(xml_query)
+  
   # check outgoing connectors - where to go
   # if only one, can go
   # if the target object has only this unique connector, can go
@@ -94,7 +116,8 @@ process_source_table <- function(xml_query, xml_node) {
   for (col in columns) {
     at_name <- xml_attr(col, "NAME")
     newXMLNode("COLUMN", attrs = c(name = at_name, alias = at_name, source = curr_source,
-                                   value = paste0(curr_source, ".", at_name)),
+                                   value = paste0(curr_source, ".", at_name), 
+                                   for_object = xml_attr(xml_node, "NAME")),
                parent = select_node)
   }
 
@@ -172,7 +195,7 @@ process_expression <- function(xml_query, xml_node, from_name) {
       } else {
         problem <- "unknown"
       }
-      print(paste0("EXPECTED ERROR 7001 (process_expression, column name in expression replacement for '",curr_f,"') problem: ", problem))
+      # print(paste0("EXPECTED ERROR 7001 (process_expression, column name in expression replacement for '",curr_f,"') problem: ", problem))
     }
   }
   
@@ -187,7 +210,8 @@ process_expression <- function(xml_query, xml_node, from_name) {
     name <- xml_attr(trans, "NAME")
     if (length(getNodeSet(xml_query, paste0("//COLUMN[@alias='", name, "']"))) == 0) {
       newXMLNode("COLUMN", attrs = c(name = name, alias = name, source = source_alias, 
-                                     value = paste0(source_alias, ".", name)), 
+                                     value = paste0(source_alias, ".", name),
+                                     for_object = xml_attr(xml_node, "NAME")), 
                  parent = getNodeSet(xml_query, "//SELECT")[1])
     } 
     
@@ -225,22 +249,60 @@ process_expression <- function(xml_query, xml_node, from_name) {
   return(xml_query)
 }
 
-## utility function to update aliases in XML query called at beginning of every process function
-update_column_aliases <- function(xml_query, from_name, to_name) {
-  #TODO: if from_name is NULL, get from connectors all conectors needed. - all incoming
-  #get connectors from from_name object - na zmenu aliasu column
-  curr_connectors <- subset(connectors$all, from_instance == from_name & to_instance == to_name)
-  for (i_conn in 1:nrow(curr_connectors)) {
-    from_field <- curr_connectors$from_field[i_conn]
-    to_field <- curr_connectors$to_field[i_conn]
-    if (from_field != to_field) { # need to update alias
-      # find in xml_query column s aliasom $from_field, zmenit ho na $to_field
-      xpathApply(xml_query, paste0("//COLUMN[@alias='", from_field, "']"), 
-                 addAttributes, alias = to_field)
-    } # else # no need to update alias
-  }
-  return(xml_query)
+process_lookup <- function(xml_query, xml_node) {
+  # <TABLEATTRIBUTE NAME ="Lookup table name" VALUE ="L1_L_SK_TABLE"/>
+  # <TABLEATTRIBUTE NAME ="Lookup Source Filter" VALUE ="L1_L_SK_TABLE.surr_table_id = 1159 AND L1_L_SK_TABLE.extract_id = 3114"/>
+  # <TABLEATTRIBUTE NAME ="Lookup condition" VALUE ="src_cd = src_cd_in"/>
+
+  print(xml_query)
+  
+  counters_env$source_no <- counters_env$source_no+1
+  curr_source <- paste0("src", counters_env$source_no)
+  # add LEFT JOIN table 
+  # with ON - replace table name with new source alias
+  table_name <- xml_attr(xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Lookup table name']"), "VALUE")
+  src_filter <- xml_attr(xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Lookup Source Filter']"), "VALUE")
+  condition <- xml_attr(xml_find_all(xml_node, ".//TABLEATTRIBUTE[@NAME='Lookup condition']"), "VALUE")
+  
+  
+  #TODO: replace tablename for source alias in src_filter
+  #TODO: add source alias before any column in condition
 }
+
+## not used
+# ## utility function to update aliases in XML query called at beginning of every process function
+# update_column_aliases <- function(xml_query, from_name, to_name) {
+#   #TODO: if from_name is NULL, get from connectors all conectors needed. - all incoming
+#   # if (is.null(from_name)) {
+#   #   
+#   # }
+#   #get connectors from from_name object - na zmenu aliasu column
+#   curr_connectors <- subset(connectors$all, to_instance == to_name)
+#   # curr_connectors <- subset(connectors$all, from_instance == from_name & to_instance == to_name)
+#   if (nrow(curr_connectors) == 0) { return(xml_query) }
+#   for (i_conn in 1:nrow(curr_connectors)) {
+#     from_field <- curr_connectors$from_field[i_conn]
+#     to_field <- curr_connectors$to_field[i_conn]
+#     if (from_field != to_field) { # need to update alias
+#       # find in xml_query column s aliasom $from_field, zmenit ho na $to_field
+#       from_src <- unname(xmlAttrs(getNodeSet(xml_query, paste0("//INCLUDED_OBJECT[@name='", 
+#                          curr_connectors$from_instance[i_conn], "']"))[[1]])['alias'])
+#       message(from_src)
+#       tryCatch({
+#         xpathApply(xml_query, paste0("//COLUMN[@alias='", from_field, "']"), #TODO: len ten column, ktory je zo spravneho source
+#                    addAttributes, alias = to_field)
+#         # xpathApply(xml_query, paste0("//COLUMN[@alias='", from_field, "' and @source='", from_src, "']"), #TODO: len ten column, ktory je zo spravneho source
+#         #            addAttributes, alias = to_field)
+#       }, warning = function(w) {
+#         message(paste("update_column_aliases: ", w))
+#       }, error = function(e) {
+#         message(paste("update_column_aliases: ", e))
+#       })
+#       
+#     } # else # no need to update alias
+#   }
+#   return(xml_query)
+# }
 
 ## not used. 
 # ## utility func to trace back alias of source table for column names that are specified in later objects like expressions
