@@ -4,6 +4,8 @@
 # params: 
 #   xml_input - original XML doc with mapping.
 #   connectors - list with data about connectors, $uniqie, $all, $objects
+#   branches - df with all branches, $beg, $end, $done
+#   xml_query - XML doc that we are building
 #
 ##################
 
@@ -100,4 +102,13 @@ get_branch_to_follow <- function(branches, connectors) {
   }
   message("Branch to follow not availible.")
   return(-2)
+}
+
+follow_branch <- function(branch, xml_query, xml_input, connectors) {
+  # get original object node
+  xpath <- paste0("//*[(name()='SOURCE' or name()='TRANSFORMATION') and @NAME='", branch$beg[1], "']")
+  beg_obj <- xml_find_all(xml_input, xpath)
+  xml_query <- process_general_object(xml_query, beg_obj, xml_input, NULL)
+  
+  return(xml_query)
 }
